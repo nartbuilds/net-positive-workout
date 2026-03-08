@@ -43,15 +43,14 @@ exports.handler = async (event) => {
 
     const messages = tokens.map((token) => ({
       token,
-      notification: {
+      // data-only so the service worker push handler controls the display
+      data: {
         title: 'Net Positive 💪',
         body: message,
+        url: '/',
       },
       webpush: {
-        notification: {
-          icon: '/icons/icon-192.png',
-          badge: '/icons/icon-72.png',
-        },
+        headers: { Urgency: 'high' },
         fcmOptions: { link: '/' },
       },
     }));
