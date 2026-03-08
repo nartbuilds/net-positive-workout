@@ -173,9 +173,11 @@ async function apiRequest(action, params = {}) {
   try {
     let response;
     if (params.method === "POST") {
+      // Use text/plain to avoid CORS preflight — Apps Script doesn't handle OPTIONS requests.
+      // The body is still valid JSON and parsed normally in Code.gs via e.postData.contents.
       response = await fetch(CONFIG.SCRIPT_URL, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "text/plain" },
         body: JSON.stringify({ action, ...params.data }),
       });
     } else {
@@ -184,6 +186,7 @@ async function apiRequest(action, params = {}) {
     }
 
     if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    // Apps Script may redirect — response.json() handles both direct and redirected responses
     return await response.json();
   } catch (err) {
     console.error(`[API] ${action} failed:`, err.message);
