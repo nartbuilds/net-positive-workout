@@ -468,7 +468,11 @@ function renderTodayView() {
       day: "numeric",
     });
 
-  state.participants.forEach((participant) => {
+  const visibleParticipants = state.currentUser
+    ? state.participants.filter((p) => p.name === state.currentUser.name)
+    : state.participants;
+
+  visibleParticipants.forEach((participant) => {
     const isMe =
       state.currentUser && state.currentUser.name === participant.name;
     const fine = calcFinesForPersonAllTime(participant.name);
