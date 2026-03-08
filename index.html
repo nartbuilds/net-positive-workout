@@ -164,6 +164,7 @@
           <h2 class="view-title">Leaderboard</h2>
           <p class="view-subtitle">All-time performance</p>
         </div>
+        <div id="board-stats"></div>
         <div id="leaderboard-container">
           <div class="skeleton skeleton-card"></div>
         </div>
@@ -173,7 +174,7 @@
       <section class="view" id="view-history">
         <div class="view-header">
           <h2 class="view-title">History</h2>
-          <p class="view-subtitle">Last 7 days</p>
+          <p class="view-subtitle">All-time</p>
         </div>
         <div id="history-container">
           <div class="skeleton skeleton-card"></div>
@@ -203,6 +204,17 @@
             <button class="btn-primary" id="btn-show-add-participant" style="margin-top:8px;">
               + Add Participant
             </button>
+          </div>
+        </div>
+
+        <!-- Dev Tools -->
+        <div class="admin-section">
+          <div class="admin-section-title">🛠️ Dev Tools</div>
+          <div class="admin-card">
+            <p style="font-size:0.8rem;color:var(--text-secondary);margin-bottom:12px;">
+              Generates 60 days of randomized completion history for all participants (for testing only).
+            </p>
+            <button class="btn-secondary" id="btn-seed-data" style="width:100%;">Seed Test Data (60 days)</button>
           </div>
         </div>
 

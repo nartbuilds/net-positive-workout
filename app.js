@@ -51,6 +51,9 @@ const CONFIG = {
 
   // History days
   HISTORY_DAYS: 7,
+
+  // Challenge end date (YYYY-MM-DD) — update this to your end date
+  CHALLENGE_END_DATE: "2026-12-31",
 };
 
 // ============================================================
@@ -132,6 +135,57 @@ function getLast7Days() {
   return days;
 }
 
+function getAllDaysForParticipant(participant) {
+  const start = participant.joinedDate || state.todayStr;
+  const days = [];
+  const d = new Date(start + "T00:00:00");
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  while (d <= today) {
+    days.push(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`);
+    d.setDate(d.getDate() + 1);
+  }
+  return days;
+}
+
+function calcBestStreak(name) {
+  const participant = state.participants.find((p) => p.name === name);
+  const allDays = getAllDaysForParticipant(participant);
+  let best = 0, current = 0;
+  for (const date of allDays) {
+    if (isWorkoutComplete(name, date)) { current++; best = Math.max(best, current); }
+    else current = 0;
+  }
+  return best;
+}
+
+function getWeekStart(dateStr) {
+  const d = new Date(dateStr + "T00:00:00");
+  const diff = d.getDay() === 0 ? -6 : 1 - d.getDay();
+  d.setDate(d.getDate() + diff);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+
+function calcStreak(name) {
+  let streak = 0;
+  const d = new Date();
+  d.setHours(0, 0, 0, 0);
+  // If today isn't done yet, start counting from yesterday so a prior streak stays intact
+  if (!isWorkoutComplete(name, state.todayStr)) {
+    d.setDate(d.getDate() - 1);
+  }
+  for (let i = 0; i < 365; i++) {
+    const dateStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+    if (isWorkoutComplete(name, dateStr)) {
+      streak++;
+      d.setDate(d.getDate() - 1);
+    } else {
+      break;
+    }
+  }
+  return streak;
+}
+
 function formatDateLabel(dateStr) {
   const d = new Date(dateStr + "T00:00:00");
   const today = new Date();
@@ -174,7 +228,11 @@ function calcFinesForPerson(name, dates) {
 }
 
 function calcFinesForPersonAllTime(name) {
-  const allDates = [...new Set(state.completions.map((c) => c.date))].sort();
+  const participant = state.participants.find((p) => p.name === name);
+  const joinedDate = participant?.joinedDate;
+  const allDates = [...new Set(state.completions.map((c) => c.date))]
+    .filter((d) => !joinedDate || d >= joinedDate)
+    .sort();
   return calcFinesForPerson(name, allDates);
 }
 
@@ -482,7 +540,6 @@ function renderTodayView() {
   visibleParticipants.forEach((participant) => {
     const isMe =
       state.currentUser && state.currentUser.name === participant.name;
-    const fine = calcFinesForPersonAllTime(participant.name);
     const completedToday = getCompletedExercisesForDay(
       participant.name,
       state.todayStr,
@@ -490,13 +547,11 @@ function renderTodayView() {
     const allDone = isWorkoutComplete(participant.name, state.todayStr);
     const color = getParticipantColor(participant);
     const initials = getInitials(participant.name);
+    const streak = calcStreak(participant.name);
 
     const card = document.createElement("div");
     card.className = `workout-card${isMe ? " is-me" : ""}${allDone ? " completed-all" : ""}`;
     card.id = `card-${participant.name.replace(/\s+/g, "-")}`;
-
-    const fineDisplay = fine === 0 ? "$0" : `-$${fine}`;
-    const fineClass = fine === 0 ? "zero" : "";
 
     const exercisesHTML = CONFIG.EXERCISES.map((ex) => {
       const done = completedToday.includes(ex.id);
@@ -525,12 +580,9 @@ function renderTodayView() {
       <div class="card-header">
         <div class="card-avatar" style="background:${color};">${initials}</div>
         <div class="card-info">
-          <div class="card-name">${participant.name}${isMe ? ' <span style="font-size:0.7rem;font-weight:600;color:var(--accent);">(you)</span>' : ""}</div>
+          <div class="card-name">${participant.name}</div>
           <div class="card-status">${statusText}</div>
-        </div>
-        <div class="card-fine">
-          <div class="fine-amount ${fineClass}">${fineDisplay}</div>
-          <div class="fine-label">All-time fines</div>
+          ${streak > 0 ? `<div class="streak-pill">🔥 ${streak}-day streak</div>` : ""}
         </div>
       </div>
       <div class="exercise-list">${exercisesHTML}</div>
@@ -545,6 +597,34 @@ function renderTodayView() {
 
     container.appendChild(card);
   });
+
+  // Group status summary (all participants except current user)
+  const others = state.currentUser
+    ? state.participants.filter((p) => p.name !== state.currentUser.name)
+    : [];
+  if (others.length > 0) {
+    const summary = document.createElement("div");
+    summary.className = "today-group-summary";
+
+    const rows = others.map((p) => {
+      const color = getParticipantColor(p);
+      const done = getCompletedExercisesForDay(p.name, state.todayStr);
+      const exBadges = CONFIG.EXERCISES.map((ex) => {
+        const isDone = done.includes(ex.id);
+        return `<span class="gsm-ex ${isDone ? "done" : "pending"}">${ex.emoji}</span>`;
+      }).join("");
+      return `
+        <div class="gsm-row">
+          <div class="gsm-avatar" style="background:${color};">${getInitials(p.name)}</div>
+          <span class="gsm-name">${p.name}</span>
+          <div class="gsm-exercises">${exBadges}</div>
+        </div>
+      `;
+    }).join("");
+
+    summary.innerHTML = `<div class="gsm-label">Group Today</div>${rows}`;
+    container.appendChild(summary);
+  }
 }
 
 async function handleExerciseCheck(e) {
@@ -587,6 +667,23 @@ async function handleExerciseCheck(e) {
   } catch {
     btn.classList.toggle("checked", wasChecked);
     showToast("Failed to save. Try again.", "error");
+    return;
+  }
+
+  // Update streak pill after state.completions is updated by saveCompletion
+  const streak = calcStreak(personName);
+  const streakPill = cardEl.querySelector(".streak-pill");
+  if (streak > 0) {
+    if (!streakPill) {
+      const pill = document.createElement("div");
+      pill.className = "streak-pill";
+      pill.textContent = `🔥 ${streak}-day streak`;
+      cardEl.querySelector(".card-status").insertAdjacentElement("afterend", pill);
+    } else {
+      streakPill.textContent = `🔥 ${streak}-day streak`;
+    }
+  } else {
+    if (streakPill) streakPill.remove();
   }
 }
 
@@ -600,21 +697,32 @@ function renderLeaderboard() {
 
   const allDates = [...new Set(state.completions.map((c) => c.date))].sort();
 
+  // Group pot and days remaining
+  const groupPot = state.participants.reduce((sum, p) => sum + calcFinesForPersonAllTime(p.name), 0);
+  const endDate = new Date(CONFIG.CHALLENGE_END_DATE + "T00:00:00");
+  const todayMidnight = new Date(); todayMidnight.setHours(0, 0, 0, 0);
+  const daysRemaining = Math.max(0, Math.ceil((endDate - todayMidnight) / 86400000));
+  document.getElementById("board-stats").innerHTML = `
+    <div class="board-stats-banner">
+      <div class="board-stat">
+        <div class="board-stat-value">$${groupPot}</div>
+        <div class="board-stat-label">💰 Group Pot</div>
+      </div>
+      <div class="board-stat-divider"></div>
+      <div class="board-stat">
+        <div class="board-stat-value">${daysRemaining}</div>
+        <div class="board-stat-label">📅 Days Remaining</div>
+      </div>
+    </div>
+  `;
+
   const data = state.participants.map((p) => {
     const totalFines = calcFinesForPersonAllTime(p.name);
     const totalDays = allDates.filter((d) => d !== state.todayStr);
     const totalCompletions = totalDays.filter((d) =>
       isWorkoutComplete(p.name, d),
     ).length;
-
-    let streak = 0;
-    const days = getLast7Days()
-      .filter((d) => d !== state.todayStr)
-      .reverse();
-    for (const d of days) {
-      if (isWorkoutComplete(p.name, d)) streak++;
-      else break;
-    }
+    const streak = calcStreak(p.name);
 
     return { participant: p, totalFines, totalCompletions, streak };
   });
@@ -628,8 +736,20 @@ function renderLeaderboard() {
   const rankClasses = ["gold", "silver", "bronze"];
   const allDaysExceptToday = allDates.filter((d) => d !== state.todayStr);
 
+  // Assign ranks — tied scores share the same rank
   data.forEach((entry, i) => {
-    const { participant, totalFines, totalCompletions, streak } = entry;
+    if (i === 0) {
+      entry.rank = 1;
+    } else {
+      const prev = data[i - 1];
+      const tied = entry.totalFines === prev.totalFines &&
+                   entry.totalCompletions === prev.totalCompletions;
+      entry.rank = tied ? prev.rank : i + 1;
+    }
+  });
+
+  data.forEach((entry, i) => {
+    const { participant, totalFines, totalCompletions, streak, rank } = entry;
     const color = getParticipantColor(participant);
     const fineDisplay = totalFines === 0 ? "$0" : `-$${totalFines}`;
     const fineClass = totalFines === 0 ? "zero" : "";
@@ -637,16 +757,17 @@ function renderLeaderboard() {
       allDaysExceptToday.length > 0
         ? Math.round((totalCompletions / allDaysExceptToday.length) * 100)
         : 0;
+    const rankDisplay = rank <= 3 ? rankEmojis[rank - 1] : rank;
+    const rankClass  = rank <= 3 ? rankClasses[rank - 1] : "";
 
     const item = document.createElement("div");
     item.className = "leaderboard-item";
     item.innerHTML = `
-      <div class="rank-badge ${i < 3 ? rankClasses[i] : ""}">${i < 3 ? rankEmojis[i] : i + 1}</div>
+      <div class="rank-badge ${rankClass}">${rankDisplay}</div>
       <div class="leaderboard-avatar" style="background:${color};">${getInitials(participant.name)}</div>
       <div class="leaderboard-info">
         <div class="leaderboard-name">${participant.name}</div>
         <div class="leaderboard-stats">
-          <span class="stat-pill completions">✅ ${totalCompletions} days</span>
           ${streak > 0 ? `<span class="stat-pill streak">🔥 ${streak} streak</span>` : ""}
         </div>
         <div class="progress-bar-wrap">
@@ -669,63 +790,164 @@ function renderLeaderboard() {
 function renderHistory() {
   const container = document.getElementById("history-container");
   container.innerHTML = "";
-  const allLast7 = getLast7Days();
 
   state.participants.forEach((participant) => {
-    // Only show days from when this participant joined
-    const days = participant.joinedDate
-      ? allLast7.filter((d) => d >= participant.joinedDate)
-      : allLast7;
-
     const color = getParticipantColor(participant);
-    const section = document.createElement("div");
-    section.className = "history-person";
+    const allDays = getAllDaysForParticipant(participant);
 
-    let daysHTML = "";
-    for (let i = days.length - 1; i >= 0; i--) {
-      const date = days[i];
-      const isToday = date === state.todayStr;
-      const done = getCompletedExercisesForDay(participant.name, date);
+    // Summary stats
+    const totalFines = calcFinesForPerson(participant.name, allDays);
+    const streak = calcStreak(participant.name);
+    const bestStreak = calcBestStreak(participant.name);
+    const pastDays = allDays.filter((d) => d < state.todayStr);
+    const todayDone = isWorkoutComplete(participant.name, state.todayStr);
+    const completedDays = pastDays.filter((d) => isWorkoutComplete(participant.name, d)).length + (todayDone ? 1 : 0);
+    const totalCountedDays = pastDays.length + (todayDone ? 1 : 0);
+    const completionRate = totalCountedDays > 0
+      ? Math.round((completedDays / totalCountedDays) * 100)
+      : 100;
 
-      const exBadges = CONFIG.EXERCISES.map((ex) => {
-        const isDone = done.includes(ex.id);
-        if (isToday && !isDone)
-          return `<span class="history-ex-badge" style="background:rgba(90,90,128,0.15);color:var(--text-muted);">${ex.emoji} —</span>`;
-        return `<span class="history-ex-badge ${isDone ? "done" : "missed"}">${ex.emoji} ${isDone ? "✓" : "✗"}</span>`;
-      }).join("");
+    // Date label without month (used inside month sections)
+    const fmtDay = (dateStr) => {
+      const d = new Date(dateStr + "T00:00:00");
+      return d.toLocaleDateString("en-US", { weekday: "short", day: "numeric" });
+    };
 
-      let dayFine = 0;
-      if (!isToday) {
-        const missed = CONFIG.EXERCISES.filter(
-          (ex) => !done.includes(ex.id),
-        ).length;
-        dayFine =
-          missed === CONFIG.EXERCISES.length
+    // Group days by month (YYYY-MM)
+    const monthMap = {};
+    for (const date of allDays) {
+      const monthKey = date.slice(0, 7);
+      if (!monthMap[monthKey]) monthMap[monthKey] = [];
+      monthMap[monthKey].push(date);
+    }
+    const monthKeys = Object.keys(monthMap).sort().reverse(); // newest first
+
+    // Build months HTML
+    let monthsHTML = "";
+    for (const monthKey of monthKeys) {
+      const monthDays = monthMap[monthKey].slice().reverse(); // newest first within month
+      const monthFine = calcFinesForPerson(participant.name, monthDays);
+      const monthDate = new Date(monthKey + "-01T00:00:00");
+      const monthLabel = monthDate.toLocaleDateString("en-US", { month: "long", year: "numeric" });
+
+      let daysHTML = "";
+      for (const date of monthDays) {
+        const isToday = date === state.todayStr;
+        const done = getCompletedExercisesForDay(participant.name, date);
+        const exBadges = CONFIG.EXERCISES.map((ex) => {
+          const isDone = done.includes(ex.id);
+          if (isToday && !isDone)
+            return `<span class="history-ex-badge pending">${ex.emoji}</span>`;
+          return `<span class="history-ex-badge ${isDone ? "done" : "missed"}">${ex.emoji}</span>`;
+        }).join("");
+
+        let dayFine = 0;
+        if (!isToday) {
+          const missed = CONFIG.EXERCISES.filter((ex) => !done.includes(ex.id)).length;
+          dayFine = missed === CONFIG.EXERCISES.length
             ? CONFIG.FINE_ALL_MISSED
             : missed * CONFIG.FINE_PER_EXERCISE;
-      }
+        }
 
-      daysHTML += `
-        <div class="history-day">
-          <div class="history-date">${formatDateLabel(date)}</div>
-          <div class="history-exercises">${exBadges}</div>
-          ${
-            !isToday
+        daysHTML += `
+          <div class="history-day">
+            <div class="history-date">${fmtDay(date)}</div>
+            <div class="history-exercises">${exBadges}</div>
+            ${!isToday
               ? `<div class="history-fine-day ${dayFine > 0 ? "" : "zero"}">${dayFine > 0 ? `-$${dayFine}` : "$0"}</div>`
               : `<div class="history-fine-day zero" style="font-size:0.7rem;">today</div>`
-          }
+            }
+          </div>
+        `;
+      }
+
+      monthsHTML += `
+        <div class="history-month">
+          <div class="history-month-header">
+            <span class="history-month-label">${monthLabel}</span>
+            <span class="history-month-fine ${monthFine === 0 ? "zero" : ""}">${monthFine > 0 ? `-$${monthFine}` : "$0"}</span>
+            <span class="history-month-chevron">▾</span>
+          </div>
+          <div class="history-month-days"><div class="history-month-days-inner">${daysHTML}</div></div>
         </div>
       `;
     }
 
+    const section = document.createElement("div");
+    section.className = "history-person";
     section.innerHTML = `
       <div class="history-person-header">
         <div class="history-avatar" style="background:${color};">${getInitials(participant.name)}</div>
         <div><div class="history-name">${participant.name}</div></div>
+        <span class="history-chevron"></span>
       </div>
-      <div class="history-days">${daysHTML}</div>
+      <div class="history-summary">
+        <div class="history-summary-stat">
+          <div class="history-summary-value" style="color:var(--danger);">-$${totalFines}</div>
+          <div class="history-summary-label">Fines</div>
+        </div>
+        <div class="history-summary-stat">
+          <div class="history-summary-value" style="color:var(--warning);">${streak}</div>
+          <div class="history-summary-label">Streak</div>
+        </div>
+        <div class="history-summary-stat">
+          <div class="history-summary-value" style="color:var(--warning);">${bestStreak}</div>
+          <div class="history-summary-label">Best</div>
+        </div>
+        <div class="history-summary-stat">
+          <div class="history-summary-value" style="color:var(--success);">${completedDays}</div>
+          <div class="history-summary-label">Days</div>
+        </div>
+        <div class="history-summary-stat">
+          <div class="history-summary-value" style="color:var(--success);">${completionRate}%</div>
+          <div class="history-summary-label">Rate</div>
+        </div>
+      </div>
+      <div class="history-days"><div class="history-days-inner">${monthsHTML}</div></div>
     `;
+
     container.appendChild(section);
+
+    const daysEl = section.querySelector(".history-days");
+
+    // Month accordions
+    section.querySelectorAll(".history-month").forEach((monthEl) => {
+      const monthDaysEl = monthEl.querySelector(".history-month-days");
+      monthEl.querySelector(".history-month-header").addEventListener("click", () => {
+        const expanded = monthEl.classList.contains("expanded");
+        if (expanded) {
+          monthDaysEl.style.height = monthDaysEl.scrollHeight + "px";
+          requestAnimationFrame(() => { monthDaysEl.style.height = "0"; });
+          monthEl.classList.remove("expanded");
+        } else {
+          monthEl.classList.add("expanded");
+          monthDaysEl.style.height = monthDaysEl.scrollHeight + "px";
+          monthDaysEl.addEventListener("transitionend", () => {
+            if (monthEl.classList.contains("expanded")) monthDaysEl.style.height = "auto";
+          }, { once: true });
+        }
+      });
+    });
+
+    // Person card accordion — overflow:visible after open so months aren't clipped
+    section.querySelector(".history-person-header").addEventListener("click", () => {
+      const expanded = section.classList.contains("expanded");
+      if (expanded) {
+        daysEl.style.overflow = "hidden";
+        daysEl.style.height = daysEl.scrollHeight + "px";
+        requestAnimationFrame(() => { daysEl.style.height = "0"; });
+        section.classList.remove("expanded");
+      } else {
+        section.classList.add("expanded");
+        daysEl.style.height = daysEl.scrollHeight + "px";
+        daysEl.addEventListener("transitionend", () => {
+          if (section.classList.contains("expanded")) {
+            daysEl.style.height = "auto";
+            daysEl.style.overflow = "visible";
+          }
+        }, { once: true });
+      }
+    });
   });
 }
 
@@ -1086,6 +1308,10 @@ function bindEvents() {
     .getElementById("btn-admin-notifs")
     .addEventListener("click", requestNotificationPermission);
 
+  document
+    .getElementById("btn-seed-data")
+    .addEventListener("click", () => seedTestData(60));
+
   document.getElementById("ios-banner-close").addEventListener("click", () => {
     document.getElementById("ios-install-banner").classList.add("hidden");
     localStorage.setItem("np_ios_banner_dismissed", "1");
@@ -1210,6 +1436,80 @@ async function handleRemoveParticipant() {
     btn.textContent = "Yes, Remove";
     removeTargetName = null;
   }
+}
+
+// ============================================================
+// DEV: SEED TEST DATA
+// ============================================================
+
+async function seedTestData(daysBack = 60) {
+  if (!db) { showToast("No database connection", "error"); return; }
+  if (!state.participants.length) { showToast("No participants found", "error"); return; }
+
+  const btn = document.getElementById("btn-seed-data");
+  if (btn) { btn.disabled = true; btn.textContent = "Seeding…"; }
+
+  // Simple deterministic hash → 0..1 float
+  function frac(s) {
+    let h = 0x811c9dc5;
+    for (let i = 0; i < s.length; i++) h = Math.imul(h ^ s.charCodeAt(i), 0x01000193);
+    return (h >>> 0) / 0xffffffff;
+  }
+
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const start = new Date(today);
+  start.setDate(start.getDate() - daysBack);
+  const startStr = `${start.getFullYear()}-${String(start.getMonth() + 1).padStart(2, "0")}-${String(start.getDate()).padStart(2, "0")}`;
+
+  // Push joinedDates back so history tab shows all days
+  for (const p of state.participants) {
+    if (!p.joinedDate || p.joinedDate > startStr) {
+      p.joinedDate = startStr;
+      await setDoc(doc(db, "participants", p.name), p);
+    }
+  }
+
+  // Build all completion docs
+  const writes = [];
+  for (const p of state.participants) {
+    const d = new Date(start);
+    while (d < today) {
+      const dateStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+      const dayRoll = frac(p.name + dateStr);
+
+      for (const ex of CONFIG.EXERCISES) {
+        let completed;
+        if (dayRoll < 0.68) {
+          completed = true; // ~68% fully-complete days
+        } else if (dayRoll < 0.88) {
+          completed = frac(p.name + dateStr + ex.id) < 0.5; // partial: 50/50 per exercise
+        } else {
+          completed = false; // ~12% total-miss days
+        }
+        writes.push({
+          docId: `${dateStr}_${p.name}_${ex.id}`,
+          item: { date: dateStr, person: p.name, exercise: ex.id, completed },
+        });
+      }
+      d.setDate(d.getDate() + 1);
+    }
+  }
+
+  showToast(`Writing ${writes.length} records…`, "info");
+
+  // Write in parallel chunks of 50
+  for (let i = 0; i < writes.length; i += 50) {
+    await Promise.all(
+      writes.slice(i, i + 50).map(({ docId, item }) => setDoc(doc(db, "completions", docId), item))
+    );
+  }
+
+  await loadData();
+  showToast(`Seeded ${writes.length} records across ${daysBack} days!`, "success");
+  if (btn) { btn.disabled = false; btn.textContent = "Seed Test Data (60 days)"; }
+  renderHistory();
+  renderAdmin();
 }
 
 // ============================================================
