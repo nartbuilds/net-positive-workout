@@ -255,7 +255,7 @@ async function saveCompletion(personName, exerciseId, completed) {
 async function addParticipant(name, pin) {
   if (!db) throw new Error("Firebase not initialized");
   const colorIndex = state.participants.length % COLORS.length;
-  const participant = { name, pin, colorIndex };
+  const participant = { name, pin, colorIndex, joinedDate: getTodayStr() };
   await setDoc(doc(db, "participants", name), participant);
   state.participants.push(participant);
   return participant;
@@ -662,9 +662,14 @@ function renderLeaderboard() {
 function renderHistory() {
   const container = document.getElementById("history-container");
   container.innerHTML = "";
-  const days = getLast7Days();
+  const allLast7 = getLast7Days();
 
   state.participants.forEach((participant) => {
+    // Only show days from when this participant joined
+    const days = participant.joinedDate
+      ? allLast7.filter((d) => d >= participant.joinedDate)
+      : allLast7;
+
     const color = getParticipantColor(participant);
     const section = document.createElement("div");
     section.className = "history-person";
