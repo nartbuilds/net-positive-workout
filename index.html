@@ -284,34 +284,6 @@
   <!-- Confetti container -->
   <div class="confetti-container" id="confetti-container"></div>
 
-  <!-- Firebase SDK (for FCM push notifications) -->
-  <script type="module">
-    // Firebase config — user must replace with their own config
-    // See README.md for setup instructions
-    import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js';
-    import { getMessaging, getToken, onMessage } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-messaging.js';
-
-    window.__initFirebase = async function(firebaseConfig, vapidKey) {
-      try {
-        const app = initializeApp(firebaseConfig);
-        const messaging = getMessaging(app);
-        window.__fcmMessaging = messaging;
-        window.__fcmVapidKey = vapidKey;
-
-        // Handle foreground messages
-        onMessage(messaging, (payload) => {
-          const { title, body } = payload.notification || {};
-          if (title && window.__showToast) {
-            window.__showToast(`${title}: ${body}`, 'info', 5000);
-          }
-        });
-        console.log('[FCM] Firebase initialized');
-      } catch (err) {
-        console.warn('[FCM] Firebase init failed:', err.message);
-      }
-    };
-  </script>
-
-  <script src="/app.js"></script>
+  <script type="module" src="/app.js"></script>
 </body>
 </html>
