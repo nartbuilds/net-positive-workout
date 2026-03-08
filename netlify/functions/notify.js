@@ -1,20 +1,28 @@
 /**
  * Netlify Function: notify
  * Sends FCM push notifications when a participant completes their workout.
- * Runs server-side so the FCM server key never touches the client.
+ * Uses Firebase Admin SDK (FCM HTTP v1 API) with a service account.
  *
  * Environment variable required (set in Netlify dashboard):
- *   FCM_SERVER_KEY = your Firebase Cloud Messaging server key
+ *   FIREBASE_SERVICE_ACCOUNT = contents of your Firebase service account JSON
  */
+
+const { initializeApp, cert, getApps } = require('firebase-admin/app');
+const { getMessaging } = require('firebase-admin/messaging');
+
+function getAdminApp() {
+  if (getApps().length > 0) return getApps()[0];
+  const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT);
+  return initializeApp({ credential: cert(serviceAccount) });
+}
 
 exports.handler = async (event) => {
   if (event.httpMethod !== 'POST') {
     return { statusCode: 405, body: 'Method Not Allowed' };
   }
 
-  const FCM_SERVER_KEY = process.env.FCM_SERVER_KEY;
-  if (!FCM_SERVER_KEY) {
-    console.warn('[notify] FCM_SERVER_KEY not set — skipping notification');
+  if (!process.env.FIREBASE_SERVICE_ACCOUNT) {
+    console.warn('[notify] FIREBASE_SERVICE_ACCOUNT not set — skipping notification');
     return { statusCode: 200, body: JSON.stringify({ skipped: true }) };
   }
 
@@ -29,32 +37,33 @@ exports.handler = async (event) => {
     return { statusCode: 200, body: JSON.stringify({ sent: 0 }) };
   }
 
-  const payload = {
-    registration_ids: tokens,
-    notification: {
-      title: 'Net Positive 💪',
-      body: message,
-      icon: '/icons/icon-192.png',
-      badge: '/icons/icon-72.png',
-    },
-    data: { url: '/', message },
-    priority: 'high',
-  };
-
   try {
-    const res = await fetch('https://fcm.googleapis.com/fcm/send', {
-      method: 'POST',
-      headers: {
-        Authorization: `key=${FCM_SERVER_KEY}`,
-        'Content-Type': 'application/json',
+    const app = getAdminApp();
+    const messaging = getMessaging(app);
+
+    const messages = tokens.map((token) => ({
+      token,
+      notification: {
+        title: 'Net Positive 💪',
+        body: message,
       },
-      body: JSON.stringify(payload),
-    });
-    const result = await res.json();
-    console.log(`[notify] success:${result.success} failure:${result.failure}`);
-    return { statusCode: 200, body: JSON.stringify(result) };
+      webpush: {
+        notification: {
+          icon: '/icons/icon-192.png',
+          badge: '/icons/icon-72.png',
+        },
+        fcmOptions: { link: '/' },
+      },
+    }));
+
+    const result = await messaging.sendEach(messages);
+    console.log(`[notify] success:${result.successCount} failure:${result.failureCount}`);
+    return {
+      statusCode: 200,
+      body: JSON.stringify({ success: result.successCount, failure: result.failureCount }),
+    };
   } catch (err) {
-    console.error('[notify] FCM error:', err.message);
+    console.error('[notify] Error:', err.message);
     return { statusCode: 500, body: err.message };
   }
 };
