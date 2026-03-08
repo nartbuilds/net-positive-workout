@@ -16,19 +16,25 @@ self.addEventListener('fetch', (event) => {
 
 // Push notification handler
 self.addEventListener('push', (event) => {
-  let data = { title: 'Net Positive', body: 'Workout update!' };
+  let raw = {};
   try {
-    data = event.data.json();
+    raw = event.data.json();
   } catch (e) {
-    if (event.data) data.body = event.data.text();
+    raw = { _text: event.data?.text() };
   }
+  console.log('[SW] push raw payload:', JSON.stringify(raw));
+
+  // Handle multiple possible FCM payload structures
+  const title = raw.title || raw.notification?.title || raw.data?.title || 'Net Positive';
+  const body  = raw.body  || raw.notification?.body  || raw.data?.body  || 'Workout update!';
+  const url   = raw.url   || raw.notification?.url   || raw.data?.url   || '/';
 
   event.waitUntil(
-    self.registration.showNotification(data.title, {
-      body: data.body,
+    self.registration.showNotification(title, {
+      body,
       icon: '/icons/icon-192.png',
       vibrate: [200, 100, 200],
-      data: { url: data.url || '/' },
+      data: { url },
       tag: 'workout-update',
       renotify: true,
     })

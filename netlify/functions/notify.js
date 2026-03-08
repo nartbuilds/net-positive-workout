@@ -43,14 +43,13 @@ exports.handler = async (event) => {
 
     const messages = tokens.map((token) => ({
       token,
-      // data-only so the service worker push handler controls the display
-      data: {
-        title: 'Net Positive 💪',
-        body: message,
-        url: '/',
-      },
       webpush: {
         headers: { Urgency: 'high' },
+        data: {
+          title: 'Net Positive 💪',
+          body: message,
+          url: '/',
+        },
         fcmOptions: { link: '/' },
       },
     }));
