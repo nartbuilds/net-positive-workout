@@ -1,5 +1,8 @@
 [build]
   command = "npm install && node build.js"
 
+[build.environment]
+  SECRETS_SCAN_SMART_DETECTION_OMIT_VALUES = "config.js"
+
 [functions]
   directory = "netlify/functions"
