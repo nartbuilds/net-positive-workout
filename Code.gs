@@ -64,16 +64,22 @@ function corsResponse(data) {
 }
 
 // ============================================================
-// GET HANDLER
+// GET HANDLER — handles ALL actions (reads + writes)
+// Using GET-only avoids CORS preflight (OPTIONS) which Apps Script
+// cannot respond to. All data is passed as URL query parameters.
 // ============================================================
 
 function doGet(e) {
   const action = e.parameter.action;
   try {
     switch (action) {
-      case 'getParticipants': return handleGetParticipants();
-      case 'getCompletions':  return handleGetCompletions();
-      case 'getTokens':       return handleGetTokens();
+      case 'getParticipants':   return handleGetParticipants();
+      case 'getCompletions':    return handleGetCompletions();
+      case 'getTokens':         return handleGetTokens();
+      case 'setCompletion':     return handleSetCompletion(e.parameter);
+      case 'addParticipant':    return handleAddParticipant(e.parameter);
+      case 'removeParticipant': return handleRemoveParticipant(e.parameter);
+      case 'registerToken':     return handleRegisterToken(e.parameter);
       default:
         return jsonResponse({ error: 'Unknown action: ' + action });
     }
@@ -175,7 +181,7 @@ function handleSetCompletion(body) {
     }
   }
 
-  const completedBool = completed === true || completed === 'true';
+  const completedBool = completed === true || completed === 'true' || completed === '1';
 
   if (rowIndex > 0) {
     // Update existing

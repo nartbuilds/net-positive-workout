@@ -167,26 +167,18 @@ function isWorkoutComplete(personName, date) {
 // ============================================================
 
 async function apiRequest(action, params = {}) {
+  // All requests use GET with URL params — Apps Script doesn't support CORS preflight
+  // (OPTIONS), so POST with custom headers is always blocked. Simple GET requests
+  // never trigger preflight and work reliably from any origin.
   const url = new URL(CONFIG.SCRIPT_URL);
   url.searchParams.set("action", action);
 
-  try {
-    let response;
-    if (params.method === "POST") {
-      // Use text/plain to avoid CORS preflight — Apps Script doesn't handle OPTIONS requests.
-      // The body is still valid JSON and parsed normally in Code.gs via e.postData.contents.
-      response = await fetch(CONFIG.SCRIPT_URL, {
-        method: "POST",
-        headers: { "Content-Type": "text/plain" },
-        body: JSON.stringify({ action, ...params.data }),
-      });
-    } else {
-      Object.entries(params).forEach(([k, v]) => url.searchParams.set(k, v));
-      response = await fetch(url.toString(), { method: "GET" });
-    }
+  const data = params.data || {};
+  Object.entries(data).forEach(([k, v]) => url.searchParams.set(k, String(v)));
 
+  try {
+    const response = await fetch(url.toString());
     if (!response.ok) throw new Error(`HTTP ${response.status}`);
-    // Apps Script may redirect — response.json() handles both direct and redirected responses
     return await response.json();
   } catch (err) {
     console.error(`[API] ${action} failed:`, err.message);
@@ -230,10 +222,7 @@ async function saveCompletion(personName, exerciseId, completed) {
   }
 
   try {
-    const res = await apiRequest("setCompletion", {
-      method: "POST",
-      data: item,
-    });
+    const res = await apiRequest("setCompletion", { data: item });
     if (res.notifyAll && res.message) {
       showToast(res.message, "success", 4000);
     }
@@ -248,10 +237,7 @@ async function saveCompletion(personName, exerciseId, completed) {
 async function addParticipant(name, pin) {
   const colorIndex = state.participants.length % COLORS.length;
   const participant = { name, pin, colorIndex };
-  const res = await apiRequest("addParticipant", {
-    method: "POST",
-    data: participant,
-  });
+  const res = await apiRequest("addParticipant", { data: participant });
   if (res.success) {
     state.participants.push(participant);
     return participant;
@@ -260,10 +246,7 @@ async function addParticipant(name, pin) {
 }
 
 async function removeParticipant(name) {
-  const res = await apiRequest("removeParticipant", {
-    method: "POST",
-    data: { name },
-  });
+  const res = await apiRequest("removeParticipant", { data: { name } });
   if (res.success) {
     state.participants = state.participants.filter((p) => p.name !== name);
     return true;
@@ -274,7 +257,6 @@ async function removeParticipant(name) {
 async function registerFCMToken(token) {
   try {
     await apiRequest("registerToken", {
-      method: "POST",
       data: {
         token,
         person: state.currentUser?.name || "unknown",
