@@ -1,5 +1,8 @@
 [build]
   command = "export SECRETS_SCAN_SMART_DETECTION_OMIT_VALUES=$FIREBASE_API_KEY && npm install && node build.js"
 
+[build.environment]
+  command = "export SECRETS_SCAN_SMART_DETECTION_OMIT_VALUES=$FIREBASE_API_KEY && npm install && node build.js"
+
 [functions]
   directory = "netlify/functions"
