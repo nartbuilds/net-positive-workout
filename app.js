@@ -551,6 +551,8 @@ async function handleExerciseCheck(e) {
     (b) => b.classList.contains("checked"),
   );
 
+  const checkedCount = [...cardEl.querySelectorAll(".exercise-check.checked")].length;
+
   if (allChecked && !cardEl.classList.contains("completed-all")) {
     cardEl.classList.add("completed-all", "just-completed");
     cardEl.querySelector(".card-status").textContent = "🎉 All done!";
@@ -562,13 +564,11 @@ async function handleExerciseCheck(e) {
     }
     triggerConfetti(getParticipantColor(state.currentUser));
     setTimeout(() => cardEl.classList.remove("just-completed"), 600);
-  } else if (!allChecked && cardEl.classList.contains("completed-all")) {
+  } else if (!allChecked) {
     cardEl.classList.remove("completed-all");
     const banner = cardEl.querySelector(".completion-banner");
     if (banner) banner.remove();
-    cardEl.querySelector(".card-status").textContent = `${
-      [...cardEl.querySelectorAll(".exercise-check.checked")].length
-    }/${CONFIG.EXERCISES.length} completed`;
+    cardEl.querySelector(".card-status").textContent = `${checkedCount}/${CONFIG.EXERCISES.length} completed`;
   }
 
   try {
