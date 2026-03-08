@@ -1,4 +1,4 @@
-const CACHE_NAME = 'net-positive-v2';
+const CACHE_NAME = 'net-positive-v3';
 const STATIC_ASSETS = [
   '/',
   '/index.html',
@@ -33,26 +33,20 @@ self.addEventListener('activate', (event) => {
   self.clients.claim();
 });
 
-// Fetch: network-first for API calls, cache-first for static assets
+// Fetch: skip all caching on localhost for easier development
 self.addEventListener('fetch', (event) => {
   // Ignore non-http requests (e.g. chrome-extension://) to avoid cache errors
   if (!event.request.url.startsWith('http')) return;
 
   const url = new URL(event.request.url);
 
-  // Always network-first for Google Apps Script API
-  if (url.hostname.includes('script.google.com')) {
-    event.respondWith(
-      fetch(event.request).catch(() => {
-        return new Response(JSON.stringify({ error: 'Offline' }), {
-          headers: { 'Content-Type': 'application/json' }
-        });
-      })
-    );
+  // On localhost: always go to network, never cache
+  if (url.hostname === 'localhost' || url.hostname === '127.0.0.1') {
+    event.respondWith(fetch(event.request));
     return;
   }
 
-  // Cache-first for static assets
+  // Cache-first for static assets, network fallback
   event.respondWith(
     caches.match(event.request).then((cached) => {
       if (cached) return cached;
