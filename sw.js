@@ -35,6 +35,9 @@ self.addEventListener('activate', (event) => {
 
 // Fetch: network-first for API calls, cache-first for static assets
 self.addEventListener('fetch', (event) => {
+  // Ignore non-http requests (e.g. chrome-extension://) to avoid cache errors
+  if (!event.request.url.startsWith('http')) return;
+
   const url = new URL(event.request.url);
 
   // Always network-first for Google Apps Script API

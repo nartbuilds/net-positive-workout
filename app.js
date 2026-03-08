@@ -4,7 +4,7 @@
  * Backend: Firebase Firestore
  */
 
-import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js';
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
 import {
   getFirestore,
   collection,
@@ -12,12 +12,12 @@ import {
   getDocs,
   setDoc,
   deleteDoc,
-} from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js';
+} from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 import {
   getMessaging,
   getToken,
   onMessage,
-} from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-messaging.js';
+} from "https://www.gstatic.com/firebasejs/10.7.1/firebase-messaging.js";
 
 // ============================================================
 // CONFIG — Replace with your values after setup
@@ -25,22 +25,24 @@ import {
 const CONFIG = {
   // Firebase config (from Firebase Console > Project Settings)
   FIREBASE: {
-    apiKey: "YOUR_FIREBASE_API_KEY",
-    authDomain: "YOUR_PROJECT.firebaseapp.com",
-    projectId: "YOUR_PROJECT_ID",
-    storageBucket: "YOUR_PROJECT.appspot.com",
-    messagingSenderId: "YOUR_SENDER_ID",
-    appId: "YOUR_APP_ID",
+    apiKey: "AIzaSyA0z60T4sRGFLX6pNVSD2Z5ZuSGAP9dGns",
+    authDomain: "net-positive-workout.firebaseapp.com",
+    projectId: "net-positive-workout",
+    storageBucket: "net-positive-workout.firebasestorage.app",
+    messagingSenderId: "944399851248",
+    appId: "1:944399851248:web:8cb52b6f773c6ac43f2c35",
+    measurementId: "G-37MKXHVX73",
   },
 
   // VAPID key from Firebase Console > Cloud Messaging > Web Push certificates
-  VAPID_KEY: "YOUR_VAPID_KEY_HERE",
+  VAPID_KEY:
+    "BN3aNe06Yk-B-1d_L0FWhu7gTWElTpE-BmLQqHXploEx2gQBzx8prUYdF0qlWa705--VGbC5Zoz90NKO6ht9oT0",
 
   // Exercises each person must complete daily
   EXERCISES: [
-    { id: "squats",  name: "100 Squats",  emoji: "🦵", target: "100 reps" },
+    { id: "squats", name: "100 Squats", emoji: "🦵", target: "100 reps" },
     { id: "pushups", name: "50 Push-ups", emoji: "💪", target: "50 reps" },
-    { id: "plank",   name: "5 Min Plank", emoji: "🧘", target: "5 minutes" },
+    { id: "plank", name: "5 Min Plank", emoji: "🧘", target: "5 minutes" },
   ],
 
   // Fine amounts
@@ -60,7 +62,9 @@ let messaging = null;
 
 function initFirebase() {
   if (CONFIG.FIREBASE.apiKey === "YOUR_FIREBASE_API_KEY") {
-    console.warn("[Firebase] Not configured — update CONFIG.FIREBASE in app.js");
+    console.warn(
+      "[Firebase] Not configured — update CONFIG.FIREBASE in app.js",
+    );
     return false;
   }
   try {
@@ -86,8 +90,14 @@ function initFirebase() {
 // PARTICIPANT COLORS
 // ============================================================
 const COLORS = [
-  "#6c63ff", "#00d9a3", "#ff6b6b", "#ffd166",
-  "#ff9f43", "#a29bfe", "#fd79a8", "#74b9ff",
+  "#6c63ff",
+  "#00d9a3",
+  "#ff6b6b",
+  "#ffd166",
+  "#ff9f43",
+  "#a29bfe",
+  "#fd79a8",
+  "#74b9ff",
 ];
 
 // ============================================================
@@ -115,7 +125,9 @@ function getLast7Days() {
   for (let i = 6; i >= 0; i--) {
     const d = new Date();
     d.setDate(d.getDate() - i);
-    days.push(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`);
+    days.push(
+      `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`,
+    );
   }
   return days;
 }
@@ -127,7 +139,11 @@ function formatDateLabel(dateStr) {
   const diff = Math.round((today - d) / 86400000);
   if (diff === 0) return "Today";
   if (diff === 1) return "Yesterday";
-  return d.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" });
+  return d.toLocaleDateString("en-US", {
+    weekday: "short",
+    month: "short",
+    day: "numeric",
+  });
 }
 
 function getParticipantColor(participant) {
@@ -135,7 +151,12 @@ function getParticipantColor(participant) {
 }
 
 function getInitials(name) {
-  return name.split(" ").map((w) => w[0]).join("").toUpperCase().slice(0, 2);
+  return name
+    .split(" ")
+    .map((w) => w[0])
+    .join("")
+    .toUpperCase()
+    .slice(0, 2);
 }
 
 function calcFinesForPerson(name, dates) {
@@ -143,7 +164,9 @@ function calcFinesForPerson(name, dates) {
   for (const date of dates) {
     if (date === state.todayStr) continue;
     const done = getCompletedExercisesForDay(name, date);
-    const missed = CONFIG.EXERCISES.filter((ex) => !done.includes(ex.id)).length;
+    const missed = CONFIG.EXERCISES.filter(
+      (ex) => !done.includes(ex.id),
+    ).length;
     if (missed === CONFIG.EXERCISES.length) total += CONFIG.FINE_ALL_MISSED;
     else total += missed * CONFIG.FINE_PER_EXERCISE;
   }
@@ -163,12 +186,18 @@ function getCompletedExercisesForDay(name, date) {
 
 function isExerciseDone(personName, exerciseId, date) {
   return state.completions.some(
-    (c) => c.date === date && c.person === personName && c.exercise === exerciseId && c.completed
+    (c) =>
+      c.date === date &&
+      c.person === personName &&
+      c.exercise === exerciseId &&
+      c.completed,
   );
 }
 
 function isWorkoutComplete(personName, date) {
-  return CONFIG.EXERCISES.every((ex) => isExerciseDone(personName, ex.id, date));
+  return CONFIG.EXERCISES.every((ex) =>
+    isExerciseDone(personName, ex.id, date),
+  );
 }
 
 // ============================================================
@@ -200,7 +229,10 @@ async function saveCompletion(personName, exerciseId, completed) {
 
   // Optimistic local update
   const idx = state.completions.findIndex(
-    (c) => c.date === item.date && c.person === item.person && c.exercise === item.exercise
+    (c) =>
+      c.date === item.date &&
+      c.person === item.person &&
+      c.exercise === item.exercise,
   );
   if (idx >= 0) state.completions[idx].completed = completed;
   else state.completions.push(item);
@@ -286,7 +318,9 @@ function loadOfflineQueue() {
   try {
     const raw = localStorage.getItem("np_offline_queue");
     state.offlineQueue = raw ? JSON.parse(raw) : [];
-  } catch { state.offlineQueue = []; }
+  } catch {
+    state.offlineQueue = [];
+  }
 }
 
 async function flushOfflineQueue() {
@@ -313,7 +347,9 @@ function loadCurrentUser() {
   try {
     const raw = localStorage.getItem("np_current_user");
     if (raw) state.currentUser = JSON.parse(raw);
-  } catch { state.currentUser = null; }
+  } catch {
+    state.currentUser = null;
+  }
 }
 
 function saveCurrentUser(user) {
@@ -354,7 +390,8 @@ function startPINEntry(participant) {
   pinTarget = participant;
   pinBuffer = "";
   updatePinDots();
-  document.getElementById("auth-pin-title").textContent = `${participant.name}'s PIN`;
+  document.getElementById("auth-pin-title").textContent =
+    `${participant.name}'s PIN`;
   document.getElementById("auth-error").classList.remove("visible");
   showAuthStep("pin");
 }
@@ -398,14 +435,21 @@ function verifyPIN() {
     const interval = setInterval(() => {
       dotsEl.style.transform = `translateX(${shake[i] || 0}px)`;
       i++;
-      if (i >= shake.length) { clearInterval(interval); dotsEl.style.transform = ""; }
+      if (i >= shake.length) {
+        clearInterval(interval);
+        dotsEl.style.transform = "";
+      }
     }, 60);
   }
 }
 
 function showAuthStep(step) {
-  document.getElementById("auth-step-select").classList.toggle("hidden", step !== "select");
-  document.getElementById("auth-step-pin").classList.toggle("hidden", step !== "pin");
+  document
+    .getElementById("auth-step-select")
+    .classList.toggle("hidden", step !== "select");
+  document
+    .getElementById("auth-step-pin")
+    .classList.toggle("hidden", step !== "pin");
 }
 
 // ============================================================
@@ -418,12 +462,20 @@ function renderTodayView() {
 
   const d = new Date();
   document.getElementById("today-date-label").textContent =
-    d.toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" });
+    d.toLocaleDateString("en-US", {
+      weekday: "long",
+      month: "long",
+      day: "numeric",
+    });
 
   state.participants.forEach((participant) => {
-    const isMe = state.currentUser && state.currentUser.name === participant.name;
+    const isMe =
+      state.currentUser && state.currentUser.name === participant.name;
     const fine = calcFinesForPersonAllTime(participant.name);
-    const completedToday = getCompletedExercisesForDay(participant.name, state.todayStr);
+    const completedToday = getCompletedExercisesForDay(
+      participant.name,
+      state.todayStr,
+    );
     const allDone = isWorkoutComplete(participant.name, state.todayStr);
     const color = getParticipantColor(participant);
     const initials = getInitials(participant.name);
@@ -496,7 +548,7 @@ async function handleExerciseCheck(e) {
 
   const cardEl = btn.closest(".workout-card");
   const allChecked = [...cardEl.querySelectorAll(".exercise-check")].every(
-    (b) => b.classList.contains("checked")
+    (b) => b.classList.contains("checked"),
   );
 
   if (allChecked && !cardEl.classList.contains("completed-all")) {
@@ -540,10 +592,14 @@ function renderLeaderboard() {
   const data = state.participants.map((p) => {
     const totalFines = calcFinesForPersonAllTime(p.name);
     const totalDays = allDates.filter((d) => d !== state.todayStr);
-    const totalCompletions = totalDays.filter((d) => isWorkoutComplete(p.name, d)).length;
+    const totalCompletions = totalDays.filter((d) =>
+      isWorkoutComplete(p.name, d),
+    ).length;
 
     let streak = 0;
-    const days = getLast7Days().filter((d) => d !== state.todayStr).reverse();
+    const days = getLast7Days()
+      .filter((d) => d !== state.todayStr)
+      .reverse();
     for (const d of days) {
       if (isWorkoutComplete(p.name, d)) streak++;
       else break;
@@ -566,8 +622,10 @@ function renderLeaderboard() {
     const color = getParticipantColor(participant);
     const fineDisplay = totalFines === 0 ? "$0" : `-$${totalFines}`;
     const fineClass = totalFines === 0 ? "zero" : "";
-    const rate = allDaysExceptToday.length > 0
-      ? Math.round((totalCompletions / allDaysExceptToday.length) * 100) : 0;
+    const rate =
+      allDaysExceptToday.length > 0
+        ? Math.round((totalCompletions / allDaysExceptToday.length) * 100)
+        : 0;
 
     const item = document.createElement("div");
     item.className = "leaderboard-item";
@@ -622,17 +680,24 @@ function renderHistory() {
 
       let dayFine = 0;
       if (!isToday) {
-        const missed = CONFIG.EXERCISES.filter((ex) => !done.includes(ex.id)).length;
-        dayFine = missed === CONFIG.EXERCISES.length ? CONFIG.FINE_ALL_MISSED : missed * CONFIG.FINE_PER_EXERCISE;
+        const missed = CONFIG.EXERCISES.filter(
+          (ex) => !done.includes(ex.id),
+        ).length;
+        dayFine =
+          missed === CONFIG.EXERCISES.length
+            ? CONFIG.FINE_ALL_MISSED
+            : missed * CONFIG.FINE_PER_EXERCISE;
       }
 
       daysHTML += `
         <div class="history-day">
           <div class="history-date">${formatDateLabel(date)}</div>
           <div class="history-exercises">${exBadges}</div>
-          ${!isToday
-            ? `<div class="history-fine-day ${dayFine > 0 ? "" : "zero"}">${dayFine > 0 ? `-$${dayFine}` : "$0"}</div>`
-            : `<div class="history-fine-day zero" style="font-size:0.7rem;">today</div>`}
+          ${
+            !isToday
+              ? `<div class="history-fine-day ${dayFine > 0 ? "" : "zero"}">${dayFine > 0 ? `-$${dayFine}` : "$0"}</div>`
+              : `<div class="history-fine-day zero" style="font-size:0.7rem;">today</div>`
+          }
         </div>
       `;
     }
@@ -653,7 +718,10 @@ function renderHistory() {
 // ============================================================
 
 function renderAdmin() {
-  const totalFines = state.participants.reduce((sum, p) => sum + calcFinesForPersonAllTime(p.name), 0);
+  const totalFines = state.participants.reduce(
+    (sum, p) => sum + calcFinesForPersonAllTime(p.name),
+    0,
+  );
   document.getElementById("total-pot-amount").textContent = `$${totalFines}`;
 
   const list = document.getElementById("admin-participants-list");
@@ -671,20 +739,24 @@ function renderAdmin() {
       </span>
       <button class="btn-danger" style="padding:6px 10px;font-size:0.75rem;" data-remove="${p.name}">Remove</button>
     `;
-    row.querySelector("[data-remove]").addEventListener("click", () => confirmRemoveParticipant(p.name));
+    row
+      .querySelector("[data-remove]")
+      .addEventListener("click", () => confirmRemoveParticipant(p.name));
     list.appendChild(row);
   });
 
   const notifEl = document.getElementById("notif-status-text");
   if ("Notification" in window) {
     const s = Notification.permission;
-    notifEl.textContent = s === "granted"
-      ? "✅ Push notifications enabled on this device."
-      : s === "denied"
-        ? "❌ Notifications blocked. Update browser settings to enable."
-        : "⚠️ Notifications not yet enabled. Tap below to enable.";
+    notifEl.textContent =
+      s === "granted"
+        ? "✅ Push notifications enabled on this device."
+        : s === "denied"
+          ? "❌ Notifications blocked. Update browser settings to enable."
+          : "⚠️ Notifications not yet enabled. Tap below to enable.";
   } else {
-    notifEl.textContent = "⚠️ This browser does not support push notifications.";
+    notifEl.textContent =
+      "⚠️ This browser does not support push notifications.";
   }
 }
 
@@ -706,17 +778,29 @@ function renderHeader() {
 // ============================================================
 
 function showView(viewId) {
-  document.querySelectorAll(".view").forEach((v) => v.classList.remove("active"));
-  document.querySelectorAll(".nav-item").forEach((n) => n.classList.remove("active"));
+  document
+    .querySelectorAll(".view")
+    .forEach((v) => v.classList.remove("active"));
+  document
+    .querySelectorAll(".nav-item")
+    .forEach((n) => n.classList.remove("active"));
   const viewEl = document.getElementById(`view-${viewId}`);
   if (viewEl) viewEl.classList.add("active");
   const navEl = document.querySelector(`.nav-item[data-view="${viewId}"]`);
   if (navEl) navEl.classList.add("active");
   switch (viewId) {
-    case "today":       renderTodayView(); break;
-    case "leaderboard": renderLeaderboard(); break;
-    case "history":     renderHistory(); break;
-    case "admin":       renderAdmin(); break;
+    case "today":
+      renderTodayView();
+      break;
+    case "leaderboard":
+      renderLeaderboard();
+      break;
+    case "history":
+      renderHistory();
+      break;
+    case "admin":
+      renderAdmin();
+      break;
   }
 }
 
@@ -724,8 +808,12 @@ function showView(viewId) {
 // MODALS
 // ============================================================
 
-function openModal(id) { document.getElementById(id).classList.add("open"); }
-function closeModal(id) { document.getElementById(id).classList.remove("open"); }
+function openModal(id) {
+  document.getElementById(id).classList.add("open");
+}
+function closeModal(id) {
+  document.getElementById(id).classList.remove("open");
+}
 
 let removeTargetName = null;
 
@@ -856,9 +944,15 @@ function updateOnlineStatus() {
 // ============================================================
 
 function showScreen(name) {
-  document.getElementById("loading-screen").classList.toggle("hidden", name !== "loading");
-  document.getElementById("auth-screen").classList.toggle("hidden", name !== "auth");
-  document.getElementById("setup-screen").classList.toggle("hidden", name !== "setup");
+  document
+    .getElementById("loading-screen")
+    .classList.toggle("hidden", name !== "loading");
+  document
+    .getElementById("auth-screen")
+    .classList.toggle("hidden", name !== "auth");
+  document
+    .getElementById("setup-screen")
+    .classList.toggle("hidden", name !== "setup");
   document.getElementById("app").classList.toggle("hidden", name !== "app");
 }
 
@@ -884,38 +978,59 @@ function bindEvents() {
   });
 
   document.getElementById("btn-auth-back").addEventListener("click", () => {
-    pinBuffer = ""; pinTarget = null; showAuthStep("select");
+    pinBuffer = "";
+    pinTarget = null;
+    showAuthStep("select");
   });
 
-  document.getElementById("btn-show-add-from-auth").addEventListener("click", () => {
-    clearModal(); openModal("add-participant-modal");
-  });
+  document
+    .getElementById("btn-show-add-from-auth")
+    .addEventListener("click", () => {
+      clearModal();
+      openModal("add-participant-modal");
+    });
 
   document.getElementById("btn-switch-user").addEventListener("click", () => {
-    clearCurrentUser(); showScreen("auth"); renderAuthScreen(); showAuthStep("select");
+    clearCurrentUser();
+    showScreen("auth");
+    renderAuthScreen();
+    showAuthStep("select");
   });
 
   document.querySelectorAll(".nav-item").forEach((btn) => {
     btn.addEventListener("click", () => showView(btn.dataset.view));
   });
 
-  document.getElementById("btn-setup-submit").addEventListener("click", handleSetupSubmit);
+  document
+    .getElementById("btn-setup-submit")
+    .addEventListener("click", handleSetupSubmit);
   document.getElementById("setup-pin").addEventListener("keydown", (e) => {
     if (e.key === "Enter") handleSetupSubmit();
   });
 
-  document.getElementById("btn-show-add-participant").addEventListener("click", () => {
-    clearModal(); openModal("add-participant-modal");
-  });
+  document
+    .getElementById("btn-show-add-participant")
+    .addEventListener("click", () => {
+      clearModal();
+      openModal("add-participant-modal");
+    });
 
-  document.getElementById("btn-add-participant-submit").addEventListener("click", handleAddParticipant);
+  document
+    .getElementById("btn-add-participant-submit")
+    .addEventListener("click", handleAddParticipant);
   document.getElementById("add-pin").addEventListener("keydown", (e) => {
     if (e.key === "Enter") handleAddParticipant();
   });
 
-  document.getElementById("btn-cancel-add").addEventListener("click", () => closeModal("add-participant-modal"));
-  document.getElementById("btn-confirm-remove").addEventListener("click", handleRemoveParticipant);
-  document.getElementById("btn-cancel-remove").addEventListener("click", () => closeModal("remove-participant-modal"));
+  document
+    .getElementById("btn-cancel-add")
+    .addEventListener("click", () => closeModal("add-participant-modal"));
+  document
+    .getElementById("btn-confirm-remove")
+    .addEventListener("click", handleRemoveParticipant);
+  document
+    .getElementById("btn-cancel-remove")
+    .addEventListener("click", () => closeModal("remove-participant-modal"));
 
   document.querySelectorAll(".modal-overlay").forEach((overlay) => {
     overlay.addEventListener("click", (e) => {
@@ -923,8 +1038,12 @@ function bindEvents() {
     });
   });
 
-  document.getElementById("btn-enable-notifs").addEventListener("click", requestNotificationPermission);
-  document.getElementById("btn-admin-notifs").addEventListener("click", requestNotificationPermission);
+  document
+    .getElementById("btn-enable-notifs")
+    .addEventListener("click", requestNotificationPermission);
+  document
+    .getElementById("btn-admin-notifs")
+    .addEventListener("click", requestNotificationPermission);
 
   document.getElementById("ios-banner-close").addEventListener("click", () => {
     document.getElementById("ios-install-banner").classList.add("hidden");
@@ -949,75 +1068,105 @@ function clearModal() {
 async function handleSetupSubmit() {
   const name = document.getElementById("setup-name").value.trim();
   const pin = document.getElementById("setup-pin").value.trim();
-  if (!name) { showSetupError("Please enter your name"); return; }
-  if (!/^\d{4}$/.test(pin)) { showSetupError("PIN must be exactly 4 digits"); return; }
+  if (!name) {
+    showSetupError("Please enter your name");
+    return;
+  }
+  if (!/^\d{4}$/.test(pin)) {
+    showSetupError("PIN must be exactly 4 digits");
+    return;
+  }
 
   const btn = document.getElementById("btn-setup-submit");
-  btn.disabled = true; btn.textContent = "Adding...";
+  btn.disabled = true;
+  btn.textContent = "Adding...";
   try {
     const p = await addParticipant(name, pin);
     saveCurrentUser(p);
     showApp();
   } catch (err) {
     showSetupError(err.message || "Failed to create account");
-    btn.disabled = false; btn.textContent = "Create Account 🚀";
+    btn.disabled = false;
+    btn.textContent = "Create Account 🚀";
   }
 }
 
 function showSetupError(msg) {
   const el = document.getElementById("setup-error");
-  el.textContent = msg; el.classList.add("visible");
+  el.textContent = msg;
+  el.classList.add("visible");
 }
 
 async function handleAddParticipant() {
   const name = document.getElementById("add-name").value.trim();
   const pin = document.getElementById("add-pin").value.trim();
-  if (!name) { showAddError("Enter a name"); return; }
-  if (!/^\d{4}$/.test(pin)) { showAddError("PIN must be exactly 4 digits"); return; }
-  if (state.participants.some((p) => p.name.toLowerCase() === name.toLowerCase())) {
-    showAddError("A participant with this name already exists"); return;
+  if (!name) {
+    showAddError("Enter a name");
+    return;
+  }
+  if (!/^\d{4}$/.test(pin)) {
+    showAddError("PIN must be exactly 4 digits");
+    return;
+  }
+  if (
+    state.participants.some((p) => p.name.toLowerCase() === name.toLowerCase())
+  ) {
+    showAddError("A participant with this name already exists");
+    return;
   }
 
   const btn = document.getElementById("btn-add-participant-submit");
-  btn.disabled = true; btn.textContent = "Adding...";
+  btn.disabled = true;
+  btn.textContent = "Adding...";
   try {
     await addParticipant(name, pin);
     closeModal("add-participant-modal");
     showToast(`${name} added! 💪`, "success");
-    if (!document.getElementById("auth-screen").classList.contains("hidden")) renderAuthScreen();
+    if (!document.getElementById("auth-screen").classList.contains("hidden"))
+      renderAuthScreen();
     if (!document.getElementById("app").classList.contains("hidden")) {
-      showView(document.querySelector(".nav-item.active")?.dataset.view || "today");
+      showView(
+        document.querySelector(".nav-item.active")?.dataset.view || "today",
+      );
     }
   } catch (err) {
     showAddError(err.message || "Failed to add participant");
   } finally {
-    btn.disabled = false; btn.textContent = "Add Participant";
+    btn.disabled = false;
+    btn.textContent = "Add Participant";
   }
 }
 
 function showAddError(msg) {
   const el = document.getElementById("add-error");
-  el.textContent = msg; el.classList.add("visible");
+  el.textContent = msg;
+  el.classList.add("visible");
 }
 
 async function handleRemoveParticipant() {
   if (!removeTargetName) return;
   const name = removeTargetName;
   const btn = document.getElementById("btn-confirm-remove");
-  btn.disabled = true; btn.textContent = "Removing...";
+  btn.disabled = true;
+  btn.textContent = "Removing...";
   try {
     await removeParticipant(name);
     closeModal("remove-participant-modal");
     showToast(`${name} removed`, "info");
     if (state.currentUser?.name === name) {
-      clearCurrentUser(); showScreen("auth"); renderAuthScreen(); showAuthStep("select");
+      clearCurrentUser();
+      showScreen("auth");
+      renderAuthScreen();
+      showAuthStep("select");
     } else {
       renderAdmin();
     }
   } catch (err) {
     showToast(err.message || "Failed to remove participant", "error");
   } finally {
-    btn.disabled = false; btn.textContent = "Yes, Remove"; removeTargetName = null;
+    btn.disabled = false;
+    btn.textContent = "Yes, Remove";
+    removeTargetName = null;
   }
 }
 
@@ -1055,14 +1204,24 @@ async function init() {
   try {
     await loadData();
   } catch {
-    if (state.currentUser) { showApp(); return; }
-    showScreen("auth"); renderAuthScreen(); return;
+    if (state.currentUser) {
+      showApp();
+      return;
+    }
+    showScreen("auth");
+    renderAuthScreen();
+    return;
   }
 
-  if (state.participants.length === 0) { showScreen("setup"); return; }
+  if (state.participants.length === 0) {
+    showScreen("setup");
+    return;
+  }
 
   if (state.currentUser) {
-    const updated = state.participants.find((p) => p.name === state.currentUser.name);
+    const updated = state.participants.find(
+      (p) => p.name === state.currentUser.name,
+    );
     if (updated) {
       state.currentUser.colorIndex = updated.colorIndex;
       showApp();
@@ -1084,17 +1243,21 @@ document.addEventListener("visibilitychange", () => {
     clearInterval(refreshInterval);
   } else {
     if (!document.getElementById("app").classList.contains("hidden")) {
-      loadData().then(() => {
-        const v = document.querySelector(".nav-item.active")?.dataset.view;
-        if (v) showView(v);
-      }).catch(() => {});
+      loadData()
+        .then(() => {
+          const v = document.querySelector(".nav-item.active")?.dataset.view;
+          if (v) showView(v);
+        })
+        .catch(() => {});
     }
     refreshInterval = setInterval(() => {
       if (!document.getElementById("app").classList.contains("hidden")) {
-        loadData().then(() => {
-          const v = document.querySelector(".nav-item.active")?.dataset.view;
-          if (v) showView(v);
-        }).catch(() => {});
+        loadData()
+          .then(() => {
+            const v = document.querySelector(".nav-item.active")?.dataset.view;
+            if (v) showView(v);
+          })
+          .catch(() => {});
       }
     }, 120000);
   }
@@ -1106,7 +1269,11 @@ setInterval(() => {
   if (newDay !== state.todayStr) {
     state.todayStr = newDay;
     const v = document.querySelector(".nav-item.active")?.dataset.view;
-    loadData().then(() => { if (v) showView(v); }).catch(() => {});
+    loadData()
+      .then(() => {
+        if (v) showView(v);
+      })
+      .catch(() => {});
   }
 }, 60000);
 
