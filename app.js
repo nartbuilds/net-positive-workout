@@ -252,13 +252,20 @@ async function saveCompletion(personName, exerciseId, completed) {
   }
 }
 
-async function addParticipant(name, pin) {
+async function addParticipant(name, pin, isAdmin = false) {
   if (!db) throw new Error("Firebase not initialized");
   const colorIndex = state.participants.length % COLORS.length;
-  const participant = { name, pin, colorIndex, joinedDate: getTodayStr() };
+  const participant = { name, pin, colorIndex, joinedDate: getTodayStr(), isAdmin };
   await setDoc(doc(db, "participants", name), participant);
   state.participants.push(participant);
   return participant;
+}
+
+async function toggleAdmin(name, makeAdmin) {
+  const { updateDoc } = await import('https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js');
+  await updateDoc(doc(db, "participants", name), { isAdmin: makeAdmin });
+  const p = state.participants.find((p) => p.name === name);
+  if (p) p.isAdmin = makeAdmin;
 }
 
 async function removeParticipant(name) {
@@ -742,15 +749,31 @@ function renderAdmin() {
     row.className = "participant-admin-row";
     row.innerHTML = `
       <div class="admin-avatar" style="background:${color};">${getInitials(p.name)}</div>
-      <span class="admin-name">${p.name}</span>
+      <span class="admin-name">${p.name}${p.isAdmin ? ' <span style="font-size:0.65rem;background:rgba(108,99,255,0.2);color:var(--accent);padding:2px 6px;border-radius:4px;font-weight:700;">ADMIN</span>' : ""}</span>
       <span style="font-size:0.8rem;color:var(--danger);font-weight:700;font-family:var(--font-mono);">
         ${fine > 0 ? `-$${fine}` : "$0"}
       </span>
+      <button class="btn-secondary" style="padding:6px 10px;font-size:0.72rem;" data-toggle-admin="${p.name}" data-is-admin="${p.isAdmin ? '1' : '0'}">
+        ${p.isAdmin ? "Revoke Admin" : "Make Admin"}
+      </button>
       <button class="btn-danger" style="padding:6px 10px;font-size:0.75rem;" data-remove="${p.name}">Remove</button>
     `;
-    row
-      .querySelector("[data-remove]")
-      .addEventListener("click", () => confirmRemoveParticipant(p.name));
+    row.querySelector("[data-remove]").addEventListener("click", () => confirmRemoveParticipant(p.name));
+    row.querySelector("[data-toggle-admin]").addEventListener("click", async (e) => {
+      const btn = e.currentTarget;
+      const targetName = btn.dataset.toggleAdmin;
+      const makeAdmin = btn.dataset.isAdmin !== "1";
+      btn.disabled = true;
+      try {
+        await toggleAdmin(targetName, makeAdmin);
+        showToast(`${targetName} is ${makeAdmin ? "now an admin" : "no longer an admin"}`, "success");
+        renderAdmin();
+      } catch (err) {
+        showToast("Failed to update admin status", "error");
+      } finally {
+        btn.disabled = false;
+      }
+    });
     list.appendChild(row);
   });
 
@@ -965,9 +988,18 @@ function showScreen(name) {
   document.getElementById("app").classList.toggle("hidden", name !== "app");
 }
 
+function isCurrentUserAdmin() {
+  if (!state.currentUser) return false;
+  const p = state.participants.find((p) => p.name === state.currentUser.name);
+  return p?.isAdmin === true;
+}
+
 function showApp() {
   showScreen("app");
   renderHeader();
+  // Show admin tab only to admins
+  const adminNav = document.querySelector('.nav-item[data-view="admin"]');
+  if (adminNav) adminNav.classList.toggle("hidden", !isCurrentUserAdmin());
   showView("today");
   checkIOSInstallPrompt();
   initNotifications();
@@ -1090,7 +1122,8 @@ async function handleSetupSubmit() {
   btn.disabled = true;
   btn.textContent = "Adding...";
   try {
-    const p = await addParticipant(name, pin);
+    // First participant to set up the app becomes admin automatically
+    const p = await addParticipant(name, pin, true);
     saveCurrentUser(p);
     showApp();
   } catch (err) {
