@@ -9,9 +9,8 @@
 // CONFIG — Replace with your values after setup
 // ============================================================
 const CONFIG = {
-  // Your Google Apps Script Web App URL (after deployment)
-  SCRIPT_URL:
-    "https://script.google.com/macros/s/AKfycbySUaKQ2t3OlWjQpBj9bqTAPFR5JBISdobOGFLmTOhOUIluhd1NlqVpE4L_I7nSx0cz/exec",
+  // Proxied through Netlify to avoid CORS — see netlify.toml
+  SCRIPT_URL: "/api",
 
   // Firebase config (from Firebase Console > Project Settings)
   FIREBASE: {
