@@ -10,16 +10,15 @@ A Progressive Web App (PWA) for daily workout accountability among friends.
 ## Table of Contents
 
 1. [Quick Overview](#quick-overview)
-2. [Google Sheets Setup](#1-google-sheets-setup)
-3. [Google Apps Script Deployment](#2-google-apps-script-deployment)
-4. [Firebase Setup (Push Notifications)](#3-firebase-setup-push-notifications)
-5. [Frontend Configuration](#4-frontend-configuration)
-6. [Hosting on Netlify or Vercel](#5-hosting-on-netlify-or-vercel)
-7. [Installing as a PWA](#6-installing-as-a-pwa)
-8. [First Launch & Adding Participants](#7-first-launch--adding-participants)
-9. [Adding Reminder Notifications Later](#8-adding-reminder-notifications-later)
-10. [File Structure](#file-structure)
-11. [FAQ / Troubleshooting](#faq--troubleshooting)
+2. [Firebase Setup](#1-firebase-setup)
+3. [Configure the App](#2-configure-the-app)
+4. [Netlify Deployment](#3-netlify-deployment)
+5. [FCM Push Notifications](#4-fcm-push-notifications)
+6. [Installing as a PWA](#5-installing-as-a-pwa)
+7. [First Launch & Adding Participants](#6-first-launch--adding-participants)
+8. [Adding Reminder Notifications Later](#7-adding-reminder-notifications-later)
+9. [File Structure](#file-structure)
+10. [FAQ / Troubleshooting](#faq--troubleshooting)
 
 ---
 
@@ -27,264 +26,198 @@ A Progressive Web App (PWA) for daily workout accountability among friends.
 
 | Component | Technology | Cost |
 |-----------|-----------|------|
-| Frontend | Vanilla HTML/CSS/JS PWA | Free |
-| Database | Google Sheets | Free |
-| Backend API | Google Apps Script | Free |
-| Push Notifications | Firebase Cloud Messaging | Free |
-| Hosting | Netlify or Vercel | Free |
+| Frontend | Vanilla HTML/CSS/JS PWA (ES modules) | Free |
+| Database | Firebase Firestore | Free |
+| Push Notifications | Firebase Cloud Messaging (FCM) | Free |
+| Notification Relay | Netlify Functions | Free |
+| Hosting | Netlify | Free |
 
 ---
 
-## 1. Google Sheets Setup
+## 1. Firebase Setup
 
-1. Go to [Google Sheets](https://sheets.google.com) and create a new spreadsheet.
-2. Name it something like **"Net Positive Workout"**.
-3. The Apps Script will automatically create the required tabs on first use:
-   - **`completions`** — date, person, exercise, completed
-   - **`participants`** — name, pin, colorIndex
-   - **`tokens`** — FCM push notification tokens
-4. Keep note of the spreadsheet URL — you'll need to open it in Apps Script next.
+Everything — database and push notifications — runs through a single Firebase project.
 
-> **Tip:** You can also manually create the three tabs now. The script will add headers automatically when first run.
-
----
-
-## 2. Google Apps Script Deployment
-
-### 2a. Open Apps Script
-
-1. In your Google Sheet, click **Extensions → Apps Script**.
-2. Delete any existing code in `Code.gs`.
-3. Paste the entire contents of `Code.gs` from this project.
-
-### 2b. Configure the FCM Server Key (optional — do this after Firebase setup)
-
-Find this line near the top of `Code.gs`:
-
-```javascript
-const FCM_SERVER_KEY = 'YOUR_FCM_SERVER_KEY_HERE';
-```
-
-Replace it with your Firebase Cloud Messaging **Server Key** (see Firebase setup below).
-
-### 2c. Test the Setup
-
-1. In the Apps Script editor, select the function **`testSetup`** from the dropdown.
-2. Click **Run**.
-3. Check the **Execution Log** — you should see "✅ All sheets created/verified."
-
-### 2d. Deploy as a Web App
-
-1. Click **Deploy → New deployment**.
-2. Click the gear ⚙️ next to "Select type" and choose **Web app**.
-3. Set the following:
-   - **Description:** `Net Positive API v1`
-   - **Execute as:** `Me` (your Google account)
-   - **Who has access:** `Anyone`
-4. Click **Deploy**.
-5. Copy the **Web app URL** — it looks like:
-   ```
-   https://script.google.com/macros/s/YOUR_SCRIPT_ID/exec
-   ```
-6. Authorize the script when prompted (click "Advanced → Go to Net Positive (unsafe)" if needed).
-
-> **Important:** Every time you edit `Code.gs`, you must create a **new deployment** (or update the existing one) for changes to take effect. The `/exec` URL stays the same.
-
----
-
-## 3. Firebase Setup (Push Notifications)
-
-> **Skip this section if you don't want push notifications.** The app works fine without them.
-
-### 3a. Create a Firebase Project
+### 1a. Create a Firebase Project
 
 1. Go to [Firebase Console](https://console.firebase.google.com).
-2. Click **Add project** → name it (e.g., "net-positive-workout") → Continue.
+2. Click **Add project** → name it (e.g. "net-positive-workout") → **Continue**.
 3. Disable Google Analytics (optional) → **Create project**.
 
-### 3b. Register a Web App
+### 1b. Register a Web App
 
-1. In the Firebase console, click the **Web** icon (`</>`).
-2. Register app name: "Net Positive PWA".
-3. **Check** "Also set up Firebase Hosting" — **No**, skip that (we use Netlify/Vercel).
-4. Click **Register app**.
-5. Copy the `firebaseConfig` object — you'll need it next.
+1. On the project overview page, click the **Web icon** (`</>`).
+2. Enter app nickname: `Net Positive PWA` → **Register app**.
+3. Copy the `firebaseConfig` object shown — you'll need it in the next step.
+4. Click **Continue to console**.
 
-### 3c. Enable Cloud Messaging
+### 1c. Create a Firestore Database
 
-1. In Firebase Console, go to **Project Settings → Cloud Messaging**.
+1. In the Firebase console sidebar, go to **Build → Firestore Database**.
+2. Click **Create database**.
+3. Choose **Start in test mode** (allows open reads/writes — fine for a friend group).
+4. Select a region close to you → **Enable**.
+
+That's it. Firestore will auto-create collections when the app first writes data.
+
+### 1d. Enable Cloud Messaging (for push notifications)
+
+1. Go to **Project Settings** (gear icon) → **Cloud Messaging** tab.
 2. Under **Web Push certificates**, click **Generate key pair**.
 3. Copy the **VAPID key** shown.
-4. Scroll up to **Cloud Messaging API (Legacy)** — click the 3-dot menu and **Enable** it.
-5. Copy the **Server key** (starts with `AAAA...`).
+4. Scroll up — under **Cloud Messaging API (Legacy)**, enable it if not already on.
+5. Copy the **Server key** (starts with `AAAA...`). You'll add this to Netlify later.
 
-### 3d. Update Your Configuration
+---
 
-Open `Code.gs` and replace:
-```javascript
-const FCM_SERVER_KEY = 'YOUR_FCM_SERVER_KEY_HERE';
-```
+## 2. Configure the App
 
-Open `app.js` and replace the `CONFIG` block:
-```javascript
+Open `app.js` and fill in the `CONFIG` block at the top:
+
+```js
 const CONFIG = {
-  SCRIPT_URL: 'https://script.google.com/macros/s/YOUR_SCRIPT_ID/exec',
-
   FIREBASE: {
-    apiKey: 'YOUR_FIREBASE_API_KEY',
-    authDomain: 'your-project.firebaseapp.com',
-    projectId: 'your-project-id',
-    storageBucket: 'your-project.appspot.com',
-    messagingSenderId: 'YOUR_SENDER_ID',
-    appId: 'YOUR_APP_ID',
+    apiKey: "...",
+    authDomain: "your-project.firebaseapp.com",
+    projectId: "your-project-id",
+    storageBucket: "your-project.appspot.com",
+    messagingSenderId: "...",
+    appId: "...",
   },
 
-  VAPID_KEY: 'YOUR_VAPID_KEY_HERE',
-  // ... rest stays the same
+  VAPID_KEY: "your-vapid-key-from-step-1d",
+
+  // Exercises, fines, etc. — edit if you want to customise
+  EXERCISES: [
+    { id: "squats",  name: "100 Squats",  emoji: "🦵", target: "100 reps" },
+    { id: "pushups", name: "50 Push-ups", emoji: "💪", target: "50 reps" },
+    { id: "plank",   name: "5 Min Plank", emoji: "🧘", target: "5 minutes" },
+  ],
+  FINE_PER_EXERCISE: 10,
+  FINE_ALL_MISSED: 50,
 };
 ```
 
 ---
 
-## 4. Frontend Configuration
+## 3. Netlify Deployment
 
-1. Open `app.js` in a text editor.
-2. Find the `CONFIG` object at the top (around line 10).
-3. Fill in:
-
-| Field | Value |
-|-------|-------|
-| `SCRIPT_URL` | Your Apps Script Web App URL |
-| `FIREBASE.apiKey` | From Firebase config |
-| `FIREBASE.authDomain` | From Firebase config |
-| `FIREBASE.projectId` | From Firebase config |
-| `FIREBASE.storageBucket` | From Firebase config |
-| `FIREBASE.messagingSenderId` | From Firebase config |
-| `FIREBASE.appId` | From Firebase config |
-| `VAPID_KEY` | From Firebase Cloud Messaging settings |
-
----
-
-## 5. Hosting on Netlify or Vercel
-
-Both are free and work great for static PWAs.
-
-### Option A: Netlify (Recommended)
+### 3a. Deploy the site
 
 1. Create a free account at [netlify.com](https://netlify.com).
-2. **Drag and drop** the project folder onto the Netlify dashboard, **or**:
-3. Connect your GitHub/GitLab repo and auto-deploy on push.
+2. Click **Add new site → Import an existing project** and connect your GitHub repo.
+3. Build settings — leave everything blank (this is a static site with no build step).
+4. Click **Deploy site**.
 
-**Manual deploy:**
+Netlify gives you a URL like `https://your-app.netlify.app`.
+
+> **HTTPS is required** for service workers and push notifications. Netlify provides it automatically.
+
+### 3b. Add the FCM server key as an environment variable
+
+1. In the Netlify dashboard, go to **Site configuration → Environment variables**.
+2. Click **Add a variable**:
+   - Key: `FCM_SERVER_KEY`
+   - Value: your FCM server key from step 1d
+3. Click **Save**.
+4. Trigger a redeploy: **Deploys → Trigger deploy → Deploy site**.
+
+This key is used by the `netlify/functions/notify.js` serverless function to send push notifications when someone completes their workout. It never touches the client.
+
+### 3c. Local development
+
+Use the Netlify CLI to run everything locally including the serverless function:
+
 ```bash
-# Install Netlify CLI (optional)
 npm install -g netlify-cli
-netlify deploy --prod --dir .
+netlify dev
 ```
 
-After deploy, Netlify gives you a URL like `https://your-app.netlify.app`.
-
-**Important — HTTPS is required for:**
-- Service workers (PWA install)
-- Push notifications
-- Netlify and Vercel both provide HTTPS by default ✅
-
-### Option B: Vercel
-
-1. Create account at [vercel.com](https://vercel.com).
-2. Install CLI: `npm install -g vercel`
-3. From project directory: `vercel --prod`
-
-Or use the web interface to import from GitHub.
-
-### Custom Domain (Optional)
-
-Both Netlify and Vercel let you add a custom domain for free.
-Update your manifest's `start_url` if you use a custom domain.
+Open `http://localhost:8888`. The Firestore connection and notification function both work locally.
 
 ---
 
-## 6. Installing as a PWA
+## 4. FCM Push Notifications
+
+When a participant completes all 3 exercises, every other participant's device receives a push notification: *"💪 Alex just completed today's workout!"*
+
+### How it works
+
+1. Each device registers an FCM token in Firestore (`tokens` collection) on first load.
+2. On workout completion, the app reads all other participants' tokens from Firestore.
+3. The app calls the Netlify Function (`/.netlify/functions/notify`) with the token list.
+4. The function sends the push via FCM's server API using the secret server key.
+
+### iPhone / iOS notes
+
+- iOS 16.4+ is required for push notifications on iPhone.
+- The app **must be installed via "Add to Home Screen"** in Safari — notifications do not work in the browser tab on iOS.
+- A banner inside the app will remind iOS users to install it.
+
+---
+
+## 5. Installing as a PWA
 
 ### Android (Chrome / Edge)
 
 1. Open the app in Chrome on Android.
-2. Tap the 3-dot menu → **Add to Home screen**.
-3. Tap **Add** to confirm.
-4. The app icon appears on your home screen and opens full-screen.
+2. Tap the 3-dot menu → **Add to Home screen** → **Add**.
+3. The app opens full-screen from your home screen.
 
-### iPhone / iPad (Safari)
+### iPhone / iPad (Safari only)
 
-> Push notifications require the app to be installed as a PWA on iOS 16.4+.
-
-1. Open the app in **Safari** (must be Safari, not Chrome).
-2. Tap the **Share button** (box with arrow pointing up).
+1. Open the app in **Safari** (not Chrome).
+2. Tap the **Share button** (box with arrow pointing up ↑).
 3. Scroll down and tap **"Add to Home Screen"**.
 4. Tap **Add** in the top-right corner.
-5. Open the app from your home screen.
-
-**A banner inside the app will remind iOS users to install it.**
+5. Launch from your home screen.
 
 ---
 
-## 7. First Launch & Adding Participants
+## 6. First Launch & Adding Participants
 
 1. Open the app — you'll see a **Welcome screen** since no participants exist yet.
 2. Enter your name and a 4-digit PIN.
 3. Tap **Create Account 🚀**.
-4. You're logged in! Others can join via the **Admin** tab → **Add Participant**.
-5. Share the app URL with everyone in the group.
-6. Each person installs it and enters their name + PIN.
+4. You're in. Share the app URL with everyone else.
+5. Each person opens the link, taps **+ Add new participant**, enters their name and PIN.
 
 **PIN notes:**
-- PINs are stored in Google Sheets (trust-based system among friends).
-- A correct PIN stores your session in localStorage — you won't need to re-enter it each visit.
-- Tap **Switch** in the top-right to log out (useful on shared devices).
+- PINs are stored in Firestore (trust-based system — no accounts or email needed).
+- A correct PIN saves your session to localStorage so you stay logged in.
+- Tap **Switch** in the top-right corner to log out (useful on shared devices).
+- Authenticated users can only check off their own exercises.
 
 ---
 
-## 8. Adding Reminder Notifications Later
+## 7. Adding Reminder Notifications Later
 
-The `sendDailyReminder()` function in `Code.gs` is already implemented and ready to activate.
+The notification infrastructure is already in place. To add morning reminders:
 
-### To enable morning reminders:
+1. Create a new Netlify scheduled function at `netlify/functions/remind.js`:
 
-1. Open the Apps Script editor.
-2. Click the **clock icon** (Triggers) in the left sidebar.
-3. Click **+ Add Trigger**.
-4. Configure:
-   - Function: `sendDailyReminder`
-   - Event source: `Time-driven`
-   - Type of time: `Day timer`
-   - Time: `8am to 9am` (or your preferred time)
-5. Click **Save**.
+```js
+// Runs every day at 8am UTC — set schedule in netlify.toml
+const { initializeApp, cert } = require('firebase-admin/app');
+const { getFirestore } = require('firebase-admin/firestore');
 
-The function will send a push notification to all registered devices every morning:
-> "🏋️ Time to crush today's workout! 100 squats, 50 push-ups, 5 min plank."
-
-### To customize the reminder message:
-
-Edit the `sendDailyReminder()` function in `Code.gs`:
-```javascript
-const message = "Your custom message here";
+exports.handler = async () => {
+  // Initialize admin SDK with service account
+  // Read all tokens from Firestore
+  // Call FCM send endpoint with reminder message
+};
 ```
 
-Then redeploy the script (Deploy → Manage deployments → Edit → New version → Deploy).
+2. Add the schedule to `netlify.toml`:
 
-### To upgrade to FCM HTTP v1 API (future-proofing):
+```toml
+[functions."remind"]
+  schedule = "0 8 * * *"
+```
 
-Google will eventually deprecate the legacy FCM API. To upgrade:
+3. Add a Firebase service account JSON as a Netlify environment variable for server-side Firestore access.
 
-1. In Firebase Console → **Project Settings → Service Accounts**.
-2. Generate a new private key (downloads a JSON file).
-3. Add the JSON to Apps Script as a Script Property.
-4. Replace `sendFCMBatch()` in `Code.gs` with the v1 API call:
-   ```
-   POST https://fcm.googleapis.com/v1/projects/YOUR_PROJECT_ID/messages:send
-   ```
-   With OAuth2 authentication using the service account.
-
-The rest of the code (token storage, notification logic) stays the same.
+The existing token registration, Firestore structure, and `notify.js` function are all designed so this can be wired up without changing anything else.
 
 ---
 
@@ -292,14 +225,17 @@ The rest of the code (token storage, notification logic) stays the same.
 
 ```
 net-positive-workout/
-├── index.html          # Main PWA shell
-├── styles.css          # All styling (dark theme, mobile-first)
-├── app.js              # Core app logic (auth, tracking, fines, leaderboard)
-├── sw.js               # Service worker (offline, push notification handler)
-├── manifest.json       # PWA manifest (installability, icons)
-├── Code.gs             # Google Apps Script backend
-├── README.md           # This file
-└── icons/              # PWA icons (you need to add these)
+├── index.html                  # PWA shell
+├── styles.css                  # Dark theme, mobile-first styles
+├── app.js                      # Core app logic (ES module, Firestore)
+├── sw.js                       # Service worker (offline, push handler)
+├── manifest.json               # PWA manifest (installability, icons)
+├── netlify.toml                # Netlify functions config
+├── netlify/
+│   └── functions/
+│       └── notify.js           # Serverless function: sends FCM push
+├── README.md                   # This file
+└── icons/                      # PWA icons (replace placeholders)
     ├── icon-72.png
     ├── icon-96.png
     ├── icon-128.png
@@ -310,66 +246,75 @@ net-positive-workout/
     └── icon-512.png
 ```
 
-### Generating Icons
+> **Note:** `Code.gs` is no longer used. The Google Sheets/Apps Script backend has been replaced entirely by Firebase Firestore.
 
-You need to create PNG icons for the PWA. Use any of these free tools:
+### Generating Real Icons
 
-- [PWA Asset Generator](https://www.npmjs.com/package/pwa-asset-generator): `npx pwa-asset-generator logo.png ./icons`
-- [RealFaviconGenerator](https://realfavicongenerator.net) — upload a square image
-- [Maskable.app](https://maskable.app) — check your icons look good on Android
+The `icons/` folder contains placeholder PNGs. Replace them before sharing with your group:
 
-Start with a 512×512 PNG with a gym/fitness theme and generate all sizes.
+```bash
+npx pwa-asset-generator your-logo.png ./icons --background "#6c63ff"
+```
+
+Or use [RealFaviconGenerator](https://realfavicongenerator.net) — upload a 512×512 image and download all sizes.
 
 ---
 
 ## FAQ / Troubleshooting
 
-**Q: The app shows "Failed to load data" on first open.**
-A: Make sure your Apps Script is deployed and the `SCRIPT_URL` in `app.js` is correct. The URL must end with `/exec`.
+**Q: The app shows "Firebase not configured" on load.**
+A: Open `app.js` and fill in the `CONFIG.FIREBASE` block with your Firebase project values. See step 2 above.
 
-**Q: CORS errors in the console.**
-A: Apps Script doesn't support custom CORS headers. Make sure the script is deployed with "Anyone" access and you're using the correct `/exec` URL (not `/dev`).
+**Q: Firestore permission denied errors.**
+A: Make sure your Firestore database was created in **test mode**. In Firebase Console → Firestore → Rules, the rules should allow reads and writes:
+```
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /{document=**} {
+      allow read, write: if true;
+    }
+  }
+}
+```
 
 **Q: Push notifications aren't working on iPhone.**
-A: iOS 16.4+ is required, and the app **must be installed via "Add to Home Screen"** in Safari. Notifications don't work in the browser tab on iOS.
+A: iOS 16.4+ is required and the app must be installed via Safari's "Add to Home Screen". Notifications don't work from the browser tab on iOS.
 
-**Q: I need to update the Apps Script code.**
-A: After editing `Code.gs`, go to **Deploy → Manage deployments**, click the pencil ✏️, select **New version**, add a description, and click **Deploy**. Your URL stays the same.
+**Q: Push notifications aren't working on Android/desktop.**
+A: Check that `FCM_SERVER_KEY` is set in Netlify's environment variables and the site has been redeployed after adding it. Also check that the browser has granted notification permission.
 
-**Q: Can I add more exercises?**
-A: Yes! Edit the `CONFIG.EXERCISES` array in `app.js`:
-```javascript
+**Q: The notification function isn't being called.**
+A: Open browser devtools → Network tab. When you check the final exercise, look for a POST to `/.netlify/functions/notify`. If it's missing, check the browser console for errors.
+
+**Q: Can I change the exercises?**
+A: Yes — edit the `CONFIG.EXERCISES` array in `app.js`:
+```js
 EXERCISES: [
-  { id: 'squats',  name: '100 Squats',  emoji: '🦵', target: '100 reps' },
-  { id: 'pushups', name: '50 Push-ups', emoji: '💪', target: '50 reps' },
-  { id: 'plank',   name: '5 Min Plank', emoji: '🧘', target: '5 minutes' },
-  // Add more here...
+  { id: "squats",   name: "100 Squats",  emoji: "🦵", target: "100 reps" },
+  { id: "pushups",  name: "50 Push-ups", emoji: "💪", target: "50 reps" },
+  { id: "plank",    name: "5 Min Plank", emoji: "🧘", target: "5 minutes" },
+  // add more here...
 ],
 ```
-The fine system will automatically scale.
+The fine system scales automatically.
 
 **Q: Can I change the fine amounts?**
-A: Yes, edit in `app.js`:
-```javascript
+A: Yes — edit in `app.js`:
+```js
 FINE_PER_EXERCISE: 10,  // $ per missed exercise
-FINE_ALL_MISSED:   50,  // $ flat if all exercises missed
+FINE_ALL_MISSED:   50,  // $ flat if all exercises missed in a day
 ```
 
-**Q: How do I reset everyone's fines?**
-A: Clear the `completions` tab in Google Sheets (keep the header row). This resets all history and fines.
+**Q: How do I reset all history and fines?**
+A: In Firebase Console → Firestore → select the `completions` collection → delete all documents.
 
-**Q: The leaderboard sorts by fewest fines. What if fines are tied?**
-A: Ties are broken by total number of complete workout days (more = better rank).
+**Q: Can multiple people use the app at the same time?**
+A: Yes. The app refreshes data every 2 minutes when the tab is visible, and immediately on tab focus.
 
-**Q: Can multiple people use the app simultaneously?**
-A: Yes. The app polls for fresh data every 2 minutes when visible. When someone checks an exercise, it saves immediately to Google Sheets.
-
----
-
-## Contributing
-
-This is a personal tool — feel free to fork and adapt it for your group!
+**Q: How do I update the app after changing code?**
+A: Push to GitHub — Netlify auto-deploys on every push to your main branch.
 
 ---
 
-*Built with ❤️ for fitness accountability*
+*Built for fitness accountability among friends.*
