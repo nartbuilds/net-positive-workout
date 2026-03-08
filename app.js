@@ -18,25 +18,14 @@ import {
   getToken,
   onMessage,
 } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-messaging.js";
+import { FIREBASE_CONFIG, VAPID_KEY as _VAPID_KEY } from "./config.js";
 
 // ============================================================
-// CONFIG — Replace with your values after setup
+// CONFIG
 // ============================================================
 const CONFIG = {
-  // Firebase config (from Firebase Console > Project Settings)
-  FIREBASE: {
-    apiKey: "AIzaSyA0z60T4sRGFLX6pNVSD2Z5ZuSGAP9dGns",
-    authDomain: "net-positive-workout.firebaseapp.com",
-    projectId: "net-positive-workout",
-    storageBucket: "net-positive-workout.firebasestorage.app",
-    messagingSenderId: "944399851248",
-    appId: "1:944399851248:web:8cb52b6f773c6ac43f2c35",
-    measurementId: "G-37MKXHVX73",
-  },
-
-  // VAPID key from Firebase Console > Cloud Messaging > Web Push certificates
-  VAPID_KEY:
-    "BN3aNe06Yk-B-1d_L0FWhu7gTWElTpE-BmLQqHXploEx2gQBzx8prUYdF0qlWa705--VGbC5Zoz90NKO6ht9oT0",
+  FIREBASE: FIREBASE_CONFIG,
+  VAPID_KEY: _VAPID_KEY,
 
   // Exercises each person must complete daily
   EXERCISES: [
