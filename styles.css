@@ -905,6 +905,14 @@ a {
   border-radius: var(--radius);
   padding: 14px 16px;
   margin-bottom: 16px;
+  transition:
+    background 0.3s,
+    border-color 0.3s;
+}
+
+.today-group-summary.all-done {
+  background: rgba(0, 217, 163, 0.07);
+  border-color: rgba(0, 217, 163, 0.35);
 }
 
 .gsm-label {
@@ -960,8 +968,10 @@ a {
 }
 
 .gsm-ex.done {
-  background: rgba(0, 217, 163, 0.15);
+  background: rgba(0, 217, 163, 0.25);
   color: var(--success);
+  font-weight: 800;
+  box-shadow: 0 0 6px rgba(0, 217, 163, 0.2);
 }
 
 .gsm-ex.pending {
@@ -1275,8 +1285,9 @@ a {
 }
 
 .history-ex-badge.done {
-  background: rgba(0, 217, 163, 0.15);
+  background: rgba(0, 217, 163, 0.25);
   color: var(--success);
+  box-shadow: 0 0 6px rgba(0, 217, 163, 0.2);
 }
 
 .history-ex-badge.missed {

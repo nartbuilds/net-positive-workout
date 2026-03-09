@@ -785,6 +785,8 @@ function renderTodayView() {
       })
       .join("");
 
+    const allOthersDone = others.every((p) => isWorkoutComplete(p.name, state.todayStr));
+    if (allOthersDone) summary.classList.add("all-done");
     summary.innerHTML = `<div class="gsm-label">Group Today</div>${rows}`;
     container.appendChild(summary);
   }
