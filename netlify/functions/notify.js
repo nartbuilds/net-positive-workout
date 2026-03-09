@@ -7,8 +7,8 @@
  *   FIREBASE_SERVICE_ACCOUNT = contents of your Firebase service account JSON
  */
 
-const { initializeApp, cert, getApps } = require('firebase-admin/app');
-const { getMessaging } = require('firebase-admin/messaging');
+import { initializeApp, cert, getApps } from 'firebase-admin/app';
+import { getMessaging } from 'firebase-admin/messaging';
 
 function getAdminApp() {
   if (getApps().length > 0) return getApps()[0];
@@ -16,7 +16,7 @@ function getAdminApp() {
   return initializeApp({ credential: cert(serviceAccount) });
 }
 
-exports.handler = async (event) => {
+export const handler = async (event) => {
   if (event.httpMethod !== 'POST') {
     return { statusCode: 405, body: 'Method Not Allowed' };
   }
@@ -46,7 +46,7 @@ exports.handler = async (event) => {
       webpush: {
         headers: { Urgency: 'high' },
         data: {
-          title: 'Net Positive 💪',
+          title: 'Net +VE 💪',
           body: message,
           url: '/',
         },

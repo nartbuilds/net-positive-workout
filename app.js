@@ -131,7 +131,9 @@ function getAllDaysForParticipant(participant) {
   const today = new Date();
   today.setHours(0, 0, 0, 0);
   while (d <= today) {
-    days.push(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`);
+    days.push(
+      `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`,
+    );
     d.setDate(d.getDate() + 1);
   }
   return days;
@@ -140,10 +142,13 @@ function getAllDaysForParticipant(participant) {
 function calcBestStreak(name) {
   const participant = state.participants.find((p) => p.name === name);
   const allDays = getAllDaysForParticipant(participant);
-  let best = 0, current = 0;
+  let best = 0,
+    current = 0;
   for (const date of allDays) {
-    if (isWorkoutComplete(name, date)) { current++; best = Math.max(best, current); }
-    else current = 0;
+    if (isWorkoutComplete(name, date)) {
+      current++;
+      best = Math.max(best, current);
+    } else current = 0;
   }
   return best;
 }
@@ -302,14 +307,21 @@ async function saveCompletion(personName, exerciseId, completed) {
 async function addParticipant(name, pin, isAdmin = false) {
   if (!db) throw new Error("Firebase not initialized");
   const colorIndex = state.participants.length % COLORS.length;
-  const participant = { name, pin, colorIndex, joinedDate: getTodayStr(), isAdmin };
+  const participant = {
+    name,
+    pin,
+    colorIndex,
+    joinedDate: getTodayStr(),
+    isAdmin,
+  };
   await setDoc(doc(db, "participants", name), participant);
   state.participants.push(participant);
   return participant;
 }
 
 async function toggleAdmin(name, makeAdmin) {
-  const { updateDoc } = await import('https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js');
+  const { updateDoc } =
+    await import("https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js");
   await updateDoc(doc(db, "participants", name), { isAdmin: makeAdmin });
   const p = state.participants.find((p) => p.name === name);
   if (p) p.isAdmin = makeAdmin;
@@ -351,7 +363,7 @@ async function sendCompletionNotification(personName) {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        message: `💪 ${personName} just completed today's workout!`,
+        message: `${personName} just completed today's workout!`,
         tokens,
       }),
     });
@@ -595,21 +607,23 @@ function renderTodayView() {
     const summary = document.createElement("div");
     summary.className = "today-group-summary";
 
-    const rows = others.map((p) => {
-      const color = getParticipantColor(p);
-      const done = getCompletedExercisesForDay(p.name, state.todayStr);
-      const exBadges = CONFIG.EXERCISES.map((ex) => {
-        const isDone = done.includes(ex.id);
-        return `<span class="gsm-ex ${isDone ? "done" : "pending"}">${ex.emoji}</span>`;
-      }).join("");
-      return `
+    const rows = others
+      .map((p) => {
+        const color = getParticipantColor(p);
+        const done = getCompletedExercisesForDay(p.name, state.todayStr);
+        const exBadges = CONFIG.EXERCISES.map((ex) => {
+          const isDone = done.includes(ex.id);
+          return `<span class="gsm-ex ${isDone ? "done" : "pending"}">${ex.emoji}</span>`;
+        }).join("");
+        return `
         <div class="gsm-row">
           <div class="gsm-avatar" style="background:${color};">${getInitials(p.name)}</div>
           <span class="gsm-name">${p.name}</span>
           <div class="gsm-exercises">${exBadges}</div>
         </div>
       `;
-    }).join("");
+      })
+      .join("");
 
     summary.innerHTML = `<div class="gsm-label">Group Today</div>${rows}`;
     container.appendChild(summary);
@@ -631,7 +645,8 @@ async function handleExerciseCheck(e) {
     (b) => b.classList.contains("checked"),
   );
 
-  const checkedCount = [...cardEl.querySelectorAll(".exercise-check.checked")].length;
+  const checkedCount = [...cardEl.querySelectorAll(".exercise-check.checked")]
+    .length;
 
   if (allChecked && !cardEl.classList.contains("completed-all")) {
     cardEl.classList.add("completed-all", "just-completed");
@@ -648,7 +663,8 @@ async function handleExerciseCheck(e) {
     cardEl.classList.remove("completed-all");
     const banner = cardEl.querySelector(".completion-banner");
     if (banner) banner.remove();
-    cardEl.querySelector(".card-status").textContent = `${checkedCount}/${CONFIG.EXERCISES.length} completed`;
+    cardEl.querySelector(".card-status").textContent =
+      `${checkedCount}/${CONFIG.EXERCISES.length} completed`;
   }
 
   try {
@@ -667,7 +683,9 @@ async function handleExerciseCheck(e) {
       const pill = document.createElement("div");
       pill.className = "streak-pill";
       pill.textContent = `🔥 ${streak}-day streak`;
-      cardEl.querySelector(".card-status").insertAdjacentElement("afterend", pill);
+      cardEl
+        .querySelector(".card-status")
+        .insertAdjacentElement("afterend", pill);
     } else {
       streakPill.textContent = `🔥 ${streak}-day streak`;
     }
@@ -687,10 +705,17 @@ function renderLeaderboard() {
   const allDates = [...new Set(state.completions.map((c) => c.date))].sort();
 
   // Group pot and days remaining
-  const groupPot = state.participants.reduce((sum, p) => sum + calcFinesForPersonAllTime(p.name), 0);
+  const groupPot = state.participants.reduce(
+    (sum, p) => sum + calcFinesForPersonAllTime(p.name),
+    0,
+  );
   const endDate = new Date(CONFIG.CHALLENGE_END_DATE + "T00:00:00");
-  const todayMidnight = new Date(); todayMidnight.setHours(0, 0, 0, 0);
-  const daysRemaining = Math.max(0, Math.ceil((endDate - todayMidnight) / 86400000));
+  const todayMidnight = new Date();
+  todayMidnight.setHours(0, 0, 0, 0);
+  const daysRemaining = Math.max(
+    0,
+    Math.ceil((endDate - todayMidnight) / 86400000),
+  );
   document.getElementById("board-stats").innerHTML = `
     <div class="board-stats-banner">
       <div class="board-stat">
@@ -731,8 +756,9 @@ function renderLeaderboard() {
       entry.rank = 1;
     } else {
       const prev = data[i - 1];
-      const tied = entry.totalFines === prev.totalFines &&
-                   entry.totalCompletions === prev.totalCompletions;
+      const tied =
+        entry.totalFines === prev.totalFines &&
+        entry.totalCompletions === prev.totalCompletions;
       entry.rank = tied ? prev.rank : i + 1;
     }
   });
@@ -747,7 +773,7 @@ function renderLeaderboard() {
         ? Math.round((totalCompletions / allDaysExceptToday.length) * 100)
         : 0;
     const rankDisplay = rank <= 3 ? rankEmojis[rank - 1] : rank;
-    const rankClass  = rank <= 3 ? rankClasses[rank - 1] : "";
+    const rankClass = rank <= 3 ? rankClasses[rank - 1] : "";
 
     const item = document.createElement("div");
     item.className = "leaderboard-item";
@@ -790,16 +816,22 @@ function renderHistory() {
     const bestStreak = calcBestStreak(participant.name);
     const pastDays = allDays.filter((d) => d < state.todayStr);
     const todayDone = isWorkoutComplete(participant.name, state.todayStr);
-    const completedDays = pastDays.filter((d) => isWorkoutComplete(participant.name, d)).length + (todayDone ? 1 : 0);
+    const completedDays =
+      pastDays.filter((d) => isWorkoutComplete(participant.name, d)).length +
+      (todayDone ? 1 : 0);
     const totalCountedDays = pastDays.length + (todayDone ? 1 : 0);
-    const completionRate = totalCountedDays > 0
-      ? Math.round((completedDays / totalCountedDays) * 100)
-      : 100;
+    const completionRate =
+      totalCountedDays > 0
+        ? Math.round((completedDays / totalCountedDays) * 100)
+        : 100;
 
     // Date label without month (used inside month sections)
     const fmtDay = (dateStr) => {
       const d = new Date(dateStr + "T00:00:00");
-      return d.toLocaleDateString("en-US", { weekday: "short", day: "numeric" });
+      return d.toLocaleDateString("en-US", {
+        weekday: "short",
+        day: "numeric",
+      });
     };
 
     // Group days by month (YYYY-MM)
@@ -817,7 +849,10 @@ function renderHistory() {
       const monthDays = monthMap[monthKey].slice().reverse(); // newest first within month
       const monthFine = calcFinesForPerson(participant.name, monthDays);
       const monthDate = new Date(monthKey + "-01T00:00:00");
-      const monthLabel = monthDate.toLocaleDateString("en-US", { month: "long", year: "numeric" });
+      const monthLabel = monthDate.toLocaleDateString("en-US", {
+        month: "long",
+        year: "numeric",
+      });
 
       let daysHTML = "";
       for (const date of monthDays) {
@@ -832,19 +867,23 @@ function renderHistory() {
 
         let dayFine = 0;
         if (!isToday) {
-          const missed = CONFIG.EXERCISES.filter((ex) => !done.includes(ex.id)).length;
-          dayFine = missed === CONFIG.EXERCISES.length
-            ? CONFIG.FINE_ALL_MISSED
-            : missed * CONFIG.FINE_PER_EXERCISE;
+          const missed = CONFIG.EXERCISES.filter(
+            (ex) => !done.includes(ex.id),
+          ).length;
+          dayFine =
+            missed === CONFIG.EXERCISES.length
+              ? CONFIG.FINE_ALL_MISSED
+              : missed * CONFIG.FINE_PER_EXERCISE;
         }
 
         daysHTML += `
           <div class="history-day">
             <div class="history-date">${fmtDay(date)}</div>
             <div class="history-exercises">${exBadges}</div>
-            ${!isToday
-              ? `<div class="history-fine-day ${dayFine > 0 ? "" : "zero"}">${dayFine > 0 ? `-$${dayFine}` : "$0"}</div>`
-              : `<div class="history-fine-day zero" style="font-size:0.7rem;">today</div>`
+            ${
+              !isToday
+                ? `<div class="history-fine-day ${dayFine > 0 ? "" : "zero"}">${dayFine > 0 ? `-$${dayFine}` : "$0"}</div>`
+                : `<div class="history-fine-day zero" style="font-size:0.7rem;">today</div>`
             }
           </div>
         `;
@@ -902,41 +941,58 @@ function renderHistory() {
     // Month accordions
     section.querySelectorAll(".history-month").forEach((monthEl) => {
       const monthDaysEl = monthEl.querySelector(".history-month-days");
-      monthEl.querySelector(".history-month-header").addEventListener("click", () => {
-        const expanded = monthEl.classList.contains("expanded");
-        if (expanded) {
-          monthDaysEl.style.height = monthDaysEl.scrollHeight + "px";
-          requestAnimationFrame(() => { monthDaysEl.style.height = "0"; });
-          monthEl.classList.remove("expanded");
-        } else {
-          monthEl.classList.add("expanded");
-          monthDaysEl.style.height = monthDaysEl.scrollHeight + "px";
-          monthDaysEl.addEventListener("transitionend", () => {
-            if (monthEl.classList.contains("expanded")) monthDaysEl.style.height = "auto";
-          }, { once: true });
-        }
-      });
+      monthEl
+        .querySelector(".history-month-header")
+        .addEventListener("click", () => {
+          const expanded = monthEl.classList.contains("expanded");
+          if (expanded) {
+            monthDaysEl.style.height = monthDaysEl.scrollHeight + "px";
+            requestAnimationFrame(() => {
+              monthDaysEl.style.height = "0";
+            });
+            monthEl.classList.remove("expanded");
+          } else {
+            monthEl.classList.add("expanded");
+            monthDaysEl.style.height = monthDaysEl.scrollHeight + "px";
+            monthDaysEl.addEventListener(
+              "transitionend",
+              () => {
+                if (monthEl.classList.contains("expanded"))
+                  monthDaysEl.style.height = "auto";
+              },
+              { once: true },
+            );
+          }
+        });
     });
 
     // Person card accordion — overflow:visible after open so months aren't clipped
-    section.querySelector(".history-person-header").addEventListener("click", () => {
-      const expanded = section.classList.contains("expanded");
-      if (expanded) {
-        daysEl.style.overflow = "hidden";
-        daysEl.style.height = daysEl.scrollHeight + "px";
-        requestAnimationFrame(() => { daysEl.style.height = "0"; });
-        section.classList.remove("expanded");
-      } else {
-        section.classList.add("expanded");
-        daysEl.style.height = daysEl.scrollHeight + "px";
-        daysEl.addEventListener("transitionend", () => {
-          if (section.classList.contains("expanded")) {
-            daysEl.style.height = "auto";
-            daysEl.style.overflow = "visible";
-          }
-        }, { once: true });
-      }
-    });
+    section
+      .querySelector(".history-person-header")
+      .addEventListener("click", () => {
+        const expanded = section.classList.contains("expanded");
+        if (expanded) {
+          daysEl.style.overflow = "hidden";
+          daysEl.style.height = daysEl.scrollHeight + "px";
+          requestAnimationFrame(() => {
+            daysEl.style.height = "0";
+          });
+          section.classList.remove("expanded");
+        } else {
+          section.classList.add("expanded");
+          daysEl.style.height = daysEl.scrollHeight + "px";
+          daysEl.addEventListener(
+            "transitionend",
+            () => {
+              if (section.classList.contains("expanded")) {
+                daysEl.style.height = "auto";
+                daysEl.style.overflow = "visible";
+              }
+            },
+            { once: true },
+          );
+        }
+      });
   });
 }
 
@@ -964,27 +1020,34 @@ function renderAdmin() {
       <span style="font-size:0.8rem;color:var(--danger);font-weight:700;font-family:var(--font-mono);">
         ${fine > 0 ? `-$${fine}` : "$0"}
       </span>
-      <button class="btn-secondary" style="padding:6px 10px;font-size:0.72rem;" data-toggle-admin="${p.name}" data-is-admin="${p.isAdmin ? '1' : '0'}">
+      <button class="btn-secondary" style="padding:6px 10px;font-size:0.72rem;" data-toggle-admin="${p.name}" data-is-admin="${p.isAdmin ? "1" : "0"}">
         ${p.isAdmin ? "Revoke Admin" : "Make Admin"}
       </button>
       <button class="btn-danger" style="padding:6px 10px;font-size:0.75rem;" data-remove="${p.name}">Remove</button>
     `;
-    row.querySelector("[data-remove]").addEventListener("click", () => confirmRemoveParticipant(p.name));
-    row.querySelector("[data-toggle-admin]").addEventListener("click", async (e) => {
-      const btn = e.currentTarget;
-      const targetName = btn.dataset.toggleAdmin;
-      const makeAdmin = btn.dataset.isAdmin !== "1";
-      btn.disabled = true;
-      try {
-        await toggleAdmin(targetName, makeAdmin);
-        showToast(`${targetName} is ${makeAdmin ? "now an admin" : "no longer an admin"}`, "success");
-        renderAdmin();
-      } catch (err) {
-        showToast("Failed to update admin status", "error");
-      } finally {
-        btn.disabled = false;
-      }
-    });
+    row
+      .querySelector("[data-remove]")
+      .addEventListener("click", () => confirmRemoveParticipant(p.name));
+    row
+      .querySelector("[data-toggle-admin]")
+      .addEventListener("click", async (e) => {
+        const btn = e.currentTarget;
+        const targetName = btn.dataset.toggleAdmin;
+        const makeAdmin = btn.dataset.isAdmin !== "1";
+        btn.disabled = true;
+        try {
+          await toggleAdmin(targetName, makeAdmin);
+          showToast(
+            `${targetName} is ${makeAdmin ? "now an admin" : "no longer an admin"}`,
+            "success",
+          );
+          renderAdmin();
+        } catch (err) {
+          showToast("Failed to update admin status", "error");
+        } finally {
+          btn.disabled = false;
+        }
+      });
     list.appendChild(row);
   });
 
@@ -1432,16 +1495,26 @@ async function handleRemoveParticipant() {
 // ============================================================
 
 async function seedTestData(daysBack = 60) {
-  if (!db) { showToast("No database connection", "error"); return; }
-  if (!state.participants.length) { showToast("No participants found", "error"); return; }
+  if (!db) {
+    showToast("No database connection", "error");
+    return;
+  }
+  if (!state.participants.length) {
+    showToast("No participants found", "error");
+    return;
+  }
 
   const btn = document.getElementById("btn-seed-data");
-  if (btn) { btn.disabled = true; btn.textContent = "Seeding…"; }
+  if (btn) {
+    btn.disabled = true;
+    btn.textContent = "Seeding…";
+  }
 
   // Simple deterministic hash → 0..1 float
   function frac(s) {
     let h = 0x811c9dc5;
-    for (let i = 0; i < s.length; i++) h = Math.imul(h ^ s.charCodeAt(i), 0x01000193);
+    for (let i = 0; i < s.length; i++)
+      h = Math.imul(h ^ s.charCodeAt(i), 0x01000193);
     return (h >>> 0) / 0xffffffff;
   }
 
@@ -1490,13 +1563,21 @@ async function seedTestData(daysBack = 60) {
   // Write in parallel chunks of 50
   for (let i = 0; i < writes.length; i += 50) {
     await Promise.all(
-      writes.slice(i, i + 50).map(({ docId, item }) => setDoc(doc(db, "completions", docId), item))
+      writes
+        .slice(i, i + 50)
+        .map(({ docId, item }) => setDoc(doc(db, "completions", docId), item)),
     );
   }
 
   await loadData();
-  showToast(`Seeded ${writes.length} records across ${daysBack} days!`, "success");
-  if (btn) { btn.disabled = false; btn.textContent = "Seed Test Data (60 days)"; }
+  showToast(
+    `Seeded ${writes.length} records across ${daysBack} days!`,
+    "success",
+  );
+  if (btn) {
+    btn.disabled = false;
+    btn.textContent = "Seed Test Data (60 days)";
+  }
   renderHistory();
   renderAdmin();
 }

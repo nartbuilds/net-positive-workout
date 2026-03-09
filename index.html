@@ -1,301 +1,396 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
-  <meta name="theme-color" content="#6c63ff" />
-  <meta name="description" content="Daily workout accountability tracker — squats, push-ups, planks with friends" />
+  <head>
+    <meta charset="UTF-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0, viewport-fit=cover"
+    />
+    <meta name="theme-color" content="#6c63ff" />
+    <meta
+      name="description"
+      content="Daily workout accountability tracker — squats, push-ups, planks with friends"
+    />
 
-  <!-- PWA Meta -->
-  <meta name="apple-mobile-web-app-capable" content="yes" />
-  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-  <meta name="apple-mobile-web-app-title" content="NetPositive" />
-  <link rel="apple-touch-icon" href="/icons/icon-192.png" />
-  <link rel="manifest" href="/manifest.json" />
+    <!-- PWA Meta -->
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta
+      name="apple-mobile-web-app-status-bar-style"
+      content="black-translucent"
+    />
+    <meta name="apple-mobile-web-app-title" content="Net +VE" />
+    <link rel="apple-touch-icon" href="/icons/icon-192.png" />
+    <link rel="manifest" href="/manifest.json" />
 
-  <title>Net Positive Workout</title>
-  <link rel="preconnect" href="https://fonts.googleapis.com" />
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800;900&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="/styles.css" />
-</head>
-<body>
-
-  <!-- Loading Screen -->
-  <div id="loading-screen">
-    <span class="loader-logo">💪</span>
-    <span class="loader-text">Net Positive</span>
-    <div class="loader-spinner"></div>
-  </div>
-
-  <!-- Auth Screen -->
-  <div id="auth-screen" class="hidden">
-    <div class="auth-header">
-      <span class="auth-logo">💪</span>
-      <h1 class="auth-title">Net Positive</h1>
-      <p class="auth-subtitle">Daily workout accountability</p>
+    <title>Net +VE Workout</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800;900&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <!-- Loading Screen -->
+    <div id="loading-screen">
+      <span class="loader-logo">💪</span>
+      <span class="loader-text">Net +VE</span>
+      <div class="loader-spinner"></div>
     </div>
 
-    <div class="auth-card">
-      <!-- Step 1: Select user -->
-      <div id="auth-step-select">
-        <h2>Who are you?</h2>
-        <div class="participant-grid" id="auth-participant-grid">
-          <!-- Populated dynamically -->
-        </div>
-        <div class="auth-footer">
-          <button class="link-btn" id="btn-show-add-from-auth">+ Add new participant</button>
-        </div>
+    <!-- Auth Screen -->
+    <div id="auth-screen" class="hidden">
+      <div class="auth-header">
+        <span class="auth-logo">💪</span>
+        <h1 class="auth-title">Net +VE</h1>
+        <p class="auth-subtitle">Daily workout accountability</p>
       </div>
 
-      <!-- Step 2: Enter PIN -->
-      <div id="auth-step-pin" class="hidden">
-        <h2 id="auth-pin-title">Enter your PIN</h2>
-        <div class="pin-section">
-          <div class="pin-dots" id="pin-dots">
-            <div class="pin-dot" data-index="0"></div>
-            <div class="pin-dot" data-index="1"></div>
-            <div class="pin-dot" data-index="2"></div>
-            <div class="pin-dot" data-index="3"></div>
+      <div class="auth-card">
+        <!-- Step 1: Select user -->
+        <div id="auth-step-select">
+          <h2>Who are you?</h2>
+          <div class="participant-grid" id="auth-participant-grid">
+            <!-- Populated dynamically -->
           </div>
-          <div class="pin-keypad" id="pin-keypad">
-            <button class="pin-key" data-digit="1">1</button>
-            <button class="pin-key" data-digit="2">2</button>
-            <button class="pin-key" data-digit="3">3</button>
-            <button class="pin-key" data-digit="4">4</button>
-            <button class="pin-key" data-digit="5">5</button>
-            <button class="pin-key" data-digit="6">6</button>
-            <button class="pin-key" data-digit="7">7</button>
-            <button class="pin-key" data-digit="8">8</button>
-            <button class="pin-key" data-digit="9">9</button>
-            <button class="pin-key pin-clear" data-action="clear">CLR</button>
-            <button class="pin-key" data-digit="0">0</button>
-            <button class="pin-key pin-back" data-action="back">⌫</button>
-          </div>
-        </div>
-        <p class="auth-error" id="auth-error">Incorrect PIN. Try again.</p>
-        <div class="auth-footer mt-12">
-          <button class="link-btn" id="btn-auth-back">← Back</button>
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <!-- Setup Screen (no participants yet) -->
-  <div id="setup-screen" class="hidden">
-    <div class="setup-header">
-      <span class="setup-logo">💪</span>
-      <h1 class="setup-title">Welcome!</h1>
-      <p class="setup-subtitle">Add your first participant to get started</p>
-    </div>
-    <div class="setup-card">
-      <div class="form-group">
-        <label for="setup-name">Your Name</label>
-        <input class="form-input" id="setup-name" type="text" placeholder="e.g. Alex" maxlength="30" autocomplete="off" />
-      </div>
-      <div class="form-group">
-        <label for="setup-pin">Choose a 4-digit PIN</label>
-        <input class="form-input" id="setup-pin" type="number" placeholder="e.g. 1234" maxlength="4"
-               inputmode="numeric" pattern="[0-9]*" autocomplete="off" />
-        <p class="form-hint">You'll use this PIN to log your workouts</p>
-      </div>
-      <button class="btn-primary" id="btn-setup-submit">Create Account 🚀</button>
-      <p class="auth-error" id="setup-error"></p>
-    </div>
-  </div>
-
-  <!-- Main App -->
-  <div id="app" class="hidden">
-    <!-- Header -->
-    <header class="app-header">
-      <div class="header-brand">
-        <span class="header-logo">💪</span>
-        <span class="header-title">Net Positive</span>
-      </div>
-      <div class="header-user">
-        <div class="user-chip" id="header-user-chip">
-          <div class="user-chip-avatar" id="header-avatar"></div>
-          <span class="user-chip-name" id="header-name"></span>
-        </div>
-        <button class="btn-switch" id="btn-switch-user">Switch</button>
-      </div>
-    </header>
-
-    <!-- Content -->
-    <main class="app-content">
-      <!-- Offline indicator -->
-      <div class="offline-badge hidden" id="offline-badge">📡 Offline</div>
-
-      <!-- iOS Install Banner -->
-      <div class="ios-install-banner hidden" id="ios-install-banner">
-        <span class="ios-install-icon">📲</span>
-        <div class="ios-install-text">
-          <strong>Install for notifications!</strong><br />
-          Tap <strong>Share ↑</strong> then <strong>"Add to Home Screen"</strong> to get workout alerts.
-        </div>
-        <button class="ios-install-close" id="ios-banner-close">✕</button>
-      </div>
-
-      <!-- Notification Permission Banner -->
-      <div class="notif-banner hidden" id="notif-banner">
-        <div class="notif-banner-text">
-          <strong>Enable notifications</strong> to get alerts when friends complete workouts!
-        </div>
-        <button class="btn-secondary" id="btn-enable-notifs" style="white-space:nowrap;font-size:0.8rem;padding:8px 12px;">Enable</button>
-      </div>
-
-      <!-- TODAY VIEW -->
-      <section class="view active" id="view-today">
-        <div class="view-header">
-          <h2 class="view-title">Today's Workout</h2>
-          <p class="view-subtitle" id="today-date-label"></p>
-          <div class="deadline-badge">⏰ Resets at midnight</div>
-        </div>
-        <div id="today-cards-container">
-          <!-- Skeleton while loading -->
-          <div class="skeleton skeleton-card"></div>
-          <div class="skeleton skeleton-card"></div>
-        </div>
-      </section>
-
-      <!-- LEADERBOARD VIEW -->
-      <section class="view" id="view-leaderboard">
-        <div class="view-header">
-          <h2 class="view-title">Leaderboard</h2>
-          <p class="view-subtitle">All-time performance</p>
-        </div>
-        <div id="board-stats"></div>
-        <div id="leaderboard-container">
-          <div class="skeleton skeleton-card"></div>
-        </div>
-      </section>
-
-      <!-- HISTORY VIEW -->
-      <section class="view" id="view-history">
-        <div class="view-header">
-          <h2 class="view-title">History</h2>
-          <p class="view-subtitle">All-time</p>
-        </div>
-        <div id="history-container">
-          <div class="skeleton skeleton-card"></div>
-        </div>
-      </section>
-
-      <!-- ADMIN VIEW -->
-      <section class="view" id="view-admin">
-        <div class="view-header">
-          <h2 class="view-title">Admin</h2>
-          <p class="view-subtitle">Manage participants & settings</p>
-        </div>
-
-        <!-- Total pot -->
-        <div class="total-pot" id="total-pot-display">
-          <div class="pot-amount" id="total-pot-amount">$0</div>
-          <div class="pot-label">Total group pot (combined fines)</div>
-        </div>
-
-        <!-- Current participants -->
-        <div class="admin-section">
-          <div class="admin-section-title">👥 Participants</div>
-          <div class="admin-card">
-            <div class="participants-admin-list" id="admin-participants-list">
-              <!-- Dynamic -->
-            </div>
-            <button class="btn-primary" id="btn-show-add-participant" style="margin-top:8px;">
-              + Add Participant
+          <div class="auth-footer">
+            <button class="link-btn" id="btn-show-add-from-auth">
+              + Add new participant
             </button>
           </div>
         </div>
 
-        <!-- Dev Tools -->
-        <div class="admin-section">
-          <div class="admin-section-title">🛠️ Dev Tools</div>
-          <div class="admin-card">
-            <p style="font-size:0.8rem;color:var(--text-secondary);margin-bottom:12px;">
-              Generates 60 days of randomized completion history for all participants (for testing only).
-            </p>
-            <button class="btn-secondary" id="btn-seed-data" style="width:100%;">Seed Test Data (60 days)</button>
+        <!-- Step 2: Enter PIN -->
+        <div id="auth-step-pin" class="hidden">
+          <h2 id="auth-pin-title">Enter your PIN</h2>
+          <div class="pin-section">
+            <div class="pin-dots" id="pin-dots">
+              <div class="pin-dot" data-index="0"></div>
+              <div class="pin-dot" data-index="1"></div>
+              <div class="pin-dot" data-index="2"></div>
+              <div class="pin-dot" data-index="3"></div>
+            </div>
+            <div class="pin-keypad" id="pin-keypad">
+              <button class="pin-key" data-digit="1">1</button>
+              <button class="pin-key" data-digit="2">2</button>
+              <button class="pin-key" data-digit="3">3</button>
+              <button class="pin-key" data-digit="4">4</button>
+              <button class="pin-key" data-digit="5">5</button>
+              <button class="pin-key" data-digit="6">6</button>
+              <button class="pin-key" data-digit="7">7</button>
+              <button class="pin-key" data-digit="8">8</button>
+              <button class="pin-key" data-digit="9">9</button>
+              <button class="pin-key pin-clear" data-action="clear">CLR</button>
+              <button class="pin-key" data-digit="0">0</button>
+              <button class="pin-key pin-back" data-action="back">⌫</button>
+            </div>
+          </div>
+          <p class="auth-error" id="auth-error">Incorrect PIN. Try again.</p>
+          <div class="auth-footer mt-12">
+            <button class="link-btn" id="btn-auth-back">← Back</button>
           </div>
         </div>
+      </div>
+    </div>
 
-        <!-- Notification status -->
-        <div class="admin-section">
-          <div class="admin-section-title">🔔 Notifications</div>
-          <div class="admin-card">
-            <p id="notif-status-text" style="font-size:0.875rem;color:var(--text-secondary);margin-bottom:12px;"></p>
-            <button class="btn-secondary" id="btn-admin-notifs" style="width:100%;">Configure Notifications</button>
-          </div>
+    <!-- Setup Screen (no participants yet) -->
+    <div id="setup-screen" class="hidden">
+      <div class="setup-header">
+        <span class="setup-logo">💪</span>
+        <h1 class="setup-title">Welcome!</h1>
+        <p class="setup-subtitle">Add your first participant to get started</p>
+      </div>
+      <div class="setup-card">
+        <div class="form-group">
+          <label for="setup-name">Your Name</label>
+          <input
+            class="form-input"
+            id="setup-name"
+            type="text"
+            placeholder="e.g. Alex"
+            maxlength="30"
+            autocomplete="off"
+          />
         </div>
-      </section>
-    </main>
-
-    <!-- Bottom Navigation -->
-    <nav class="bottom-nav">
-      <button class="nav-item active" data-view="today">
-        <span class="nav-icon">🏋️</span>
-        <span>Today</span>
-      </button>
-      <button class="nav-item" data-view="leaderboard">
-        <span class="nav-icon">🏆</span>
-        <span>Board</span>
-      </button>
-      <button class="nav-item" data-view="history">
-        <span class="nav-icon">📅</span>
-        <span>History</span>
-      </button>
-      <button class="nav-item" data-view="admin">
-        <span class="nav-icon">⚙️</span>
-        <span>Admin</span>
-      </button>
-    </nav>
-  </div>
-
-  <!-- Add Participant Modal -->
-  <div class="modal-overlay" id="add-participant-modal">
-    <div class="modal">
-      <div class="modal-handle"></div>
-      <h3 class="modal-title">Add Participant</h3>
-      <div class="form-group">
-        <label for="add-name">Name</label>
-        <input class="form-input" id="add-name" type="text" placeholder="e.g. Jordan" maxlength="30" autocomplete="off" />
-      </div>
-      <div class="form-group">
-        <label for="add-pin">4-digit PIN</label>
-        <input class="form-input" id="add-pin" type="number" placeholder="e.g. 5678" maxlength="4"
-               inputmode="numeric" pattern="[0-9]*" autocomplete="off" />
-        <p class="form-hint">The participant will use this to log workouts</p>
-      </div>
-      <p class="auth-error" id="add-error"></p>
-      <div class="modal-actions">
-        <button class="btn-primary" id="btn-add-participant-submit">Add Participant</button>
-        <button class="btn-secondary" id="btn-cancel-add">Cancel</button>
+        <div class="form-group">
+          <label for="setup-pin">Choose a 4-digit PIN</label>
+          <input
+            class="form-input"
+            id="setup-pin"
+            type="number"
+            placeholder="e.g. 1234"
+            maxlength="4"
+            inputmode="numeric"
+            pattern="[0-9]*"
+            autocomplete="off"
+          />
+          <p class="form-hint">You'll use this PIN to log your workouts</p>
+        </div>
+        <button class="btn-primary" id="btn-setup-submit">
+          Create Account 🚀
+        </button>
+        <p class="auth-error" id="setup-error"></p>
       </div>
     </div>
-  </div>
 
-  <!-- Remove Participant Confirm Modal -->
-  <div class="modal-overlay" id="remove-participant-modal">
-    <div class="modal">
-      <div class="modal-handle"></div>
-      <h3 class="modal-title">Remove Participant?</h3>
-      <p style="font-size:0.9rem;color:var(--text-secondary);margin-bottom:16px;">
-        ⚠️ This will remove <strong id="remove-participant-name"></strong> from the group.
-        Their past completion history will remain in the sheet but their profile will be hidden.
-        Fine history calculations for other participants will not be affected.
-      </p>
-      <div class="modal-actions">
-        <button class="btn-danger" id="btn-confirm-remove">Yes, Remove</button>
-        <button class="btn-secondary" id="btn-cancel-remove">Cancel</button>
+    <!-- Main App -->
+    <div id="app" class="hidden">
+      <!-- Header -->
+      <header class="app-header">
+        <div class="header-brand">
+          <span class="header-logo">💪</span>
+          <span class="header-title">Net +VE</span>
+        </div>
+        <div class="header-user">
+          <div class="user-chip" id="header-user-chip">
+            <div class="user-chip-avatar" id="header-avatar"></div>
+            <span class="user-chip-name" id="header-name"></span>
+          </div>
+          <button class="btn-switch" id="btn-switch-user">Switch</button>
+        </div>
+      </header>
+
+      <!-- Content -->
+      <main class="app-content">
+        <!-- Offline indicator -->
+        <div class="offline-badge hidden" id="offline-badge">📡 Offline</div>
+
+        <!-- iOS Install Banner -->
+        <div class="ios-install-banner hidden" id="ios-install-banner">
+          <span class="ios-install-icon">📲</span>
+          <div class="ios-install-text">
+            <strong>Install for notifications!</strong><br />
+            Tap <strong>Share ↑</strong> then
+            <strong>"Add to Home Screen"</strong> to get workout alerts.
+          </div>
+          <button class="ios-install-close" id="ios-banner-close">✕</button>
+        </div>
+
+        <!-- Notification Permission Banner -->
+        <div class="notif-banner hidden" id="notif-banner">
+          <div class="notif-banner-text">
+            <strong>Enable notifications</strong> to get alerts when friends
+            complete workouts!
+          </div>
+          <button
+            class="btn-secondary"
+            id="btn-enable-notifs"
+            style="white-space: nowrap; font-size: 0.8rem; padding: 8px 12px"
+          >
+            Enable
+          </button>
+        </div>
+
+        <!-- TODAY VIEW -->
+        <section class="view active" id="view-today">
+          <div class="view-header">
+            <h2 class="view-title">Today's Workout</h2>
+            <p class="view-subtitle" id="today-date-label"></p>
+            <div class="deadline-badge">⏰ Resets at midnight</div>
+          </div>
+          <div id="today-cards-container">
+            <!-- Skeleton while loading -->
+            <div class="skeleton skeleton-card"></div>
+            <div class="skeleton skeleton-card"></div>
+          </div>
+        </section>
+
+        <!-- LEADERBOARD VIEW -->
+        <section class="view" id="view-leaderboard">
+          <div class="view-header">
+            <h2 class="view-title">Leaderboard</h2>
+            <p class="view-subtitle">All-time performance</p>
+          </div>
+          <div id="board-stats"></div>
+          <div id="leaderboard-container">
+            <div class="skeleton skeleton-card"></div>
+          </div>
+        </section>
+
+        <!-- HISTORY VIEW -->
+        <section class="view" id="view-history">
+          <div class="view-header">
+            <h2 class="view-title">History</h2>
+            <p class="view-subtitle">All-time</p>
+          </div>
+          <div id="history-container">
+            <div class="skeleton skeleton-card"></div>
+          </div>
+        </section>
+
+        <!-- ADMIN VIEW -->
+        <section class="view" id="view-admin">
+          <div class="view-header">
+            <h2 class="view-title">Admin</h2>
+            <p class="view-subtitle">Manage participants & settings</p>
+          </div>
+
+          <!-- Total pot -->
+          <div class="total-pot" id="total-pot-display">
+            <div class="pot-amount" id="total-pot-amount">$0</div>
+            <div class="pot-label">Total group pot (combined fines)</div>
+          </div>
+
+          <!-- Current participants -->
+          <div class="admin-section">
+            <div class="admin-section-title">👥 Participants</div>
+            <div class="admin-card">
+              <div class="participants-admin-list" id="admin-participants-list">
+                <!-- Dynamic -->
+              </div>
+              <button
+                class="btn-primary"
+                id="btn-show-add-participant"
+                style="margin-top: 8px"
+              >
+                + Add Participant
+              </button>
+            </div>
+          </div>
+
+          <!-- Dev Tools -->
+          <div class="admin-section">
+            <div class="admin-section-title">🛠️ Dev Tools</div>
+            <div class="admin-card">
+              <p
+                style="
+                  font-size: 0.8rem;
+                  color: var(--text-secondary);
+                  margin-bottom: 12px;
+                "
+              >
+                Generates 60 days of randomized completion history for all
+                participants (for testing only).
+              </p>
+              <button
+                class="btn-secondary"
+                id="btn-seed-data"
+                style="width: 100%"
+              >
+                Seed Test Data (60 days)
+              </button>
+            </div>
+          </div>
+
+          <!-- Notification status -->
+          <div class="admin-section">
+            <div class="admin-section-title">🔔 Notifications</div>
+            <div class="admin-card">
+              <p
+                id="notif-status-text"
+                style="
+                  font-size: 0.875rem;
+                  color: var(--text-secondary);
+                  margin-bottom: 12px;
+                "
+              ></p>
+              <button
+                class="btn-secondary"
+                id="btn-admin-notifs"
+                style="width: 100%"
+              >
+                Configure Notifications
+              </button>
+            </div>
+          </div>
+        </section>
+      </main>
+
+      <!-- Bottom Navigation -->
+      <nav class="bottom-nav">
+        <button class="nav-item active" data-view="today">
+          <span class="nav-icon">🏋️</span>
+          <span>Today</span>
+        </button>
+        <button class="nav-item" data-view="leaderboard">
+          <span class="nav-icon">🏆</span>
+          <span>Board</span>
+        </button>
+        <button class="nav-item" data-view="history">
+          <span class="nav-icon">📅</span>
+          <span>History</span>
+        </button>
+        <button class="nav-item" data-view="admin">
+          <span class="nav-icon">⚙️</span>
+          <span>Admin</span>
+        </button>
+      </nav>
+    </div>
+
+    <!-- Add Participant Modal -->
+    <div class="modal-overlay" id="add-participant-modal">
+      <div class="modal">
+        <div class="modal-handle"></div>
+        <h3 class="modal-title">Add Participant</h3>
+        <div class="form-group">
+          <label for="add-name">Name</label>
+          <input
+            class="form-input"
+            id="add-name"
+            type="text"
+            placeholder="e.g. Jordan"
+            maxlength="30"
+            autocomplete="off"
+          />
+        </div>
+        <div class="form-group">
+          <label for="add-pin">4-digit PIN</label>
+          <input
+            class="form-input"
+            id="add-pin"
+            type="number"
+            placeholder="e.g. 5678"
+            maxlength="4"
+            inputmode="numeric"
+            pattern="[0-9]*"
+            autocomplete="off"
+          />
+          <p class="form-hint">The participant will use this to log workouts</p>
+        </div>
+        <p class="auth-error" id="add-error"></p>
+        <div class="modal-actions">
+          <button class="btn-primary" id="btn-add-participant-submit">
+            Add Participant
+          </button>
+          <button class="btn-secondary" id="btn-cancel-add">Cancel</button>
+        </div>
       </div>
     </div>
-  </div>
 
-  <!-- Toast container -->
-  <div class="toast-container" id="toast-container"></div>
+    <!-- Remove Participant Confirm Modal -->
+    <div class="modal-overlay" id="remove-participant-modal">
+      <div class="modal">
+        <div class="modal-handle"></div>
+        <h3 class="modal-title">Remove Participant?</h3>
+        <p
+          style="
+            font-size: 0.9rem;
+            color: var(--text-secondary);
+            margin-bottom: 16px;
+          "
+        >
+          ⚠️ This will remove
+          <strong id="remove-participant-name"></strong> from the group. Their
+          past completion history will remain in the sheet but their profile
+          will be hidden. Fine history calculations for other participants will
+          not be affected.
+        </p>
+        <div class="modal-actions">
+          <button class="btn-danger" id="btn-confirm-remove">
+            Yes, Remove
+          </button>
+          <button class="btn-secondary" id="btn-cancel-remove">Cancel</button>
+        </div>
+      </div>
+    </div>
 
-  <!-- Confetti container -->
-  <div class="confetti-container" id="confetti-container"></div>
+    <!-- Toast container -->
+    <div class="toast-container" id="toast-container"></div>
 
-  <script type="module" src="/app.js"></script>
-</body>
+    <!-- Confetti container -->
+    <div class="confetti-container" id="confetti-container"></div>
+
+    <script type="module" src="/app.js"></script>
+  </body>
 </html>

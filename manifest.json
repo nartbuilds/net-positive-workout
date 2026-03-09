@@ -1,6 +1,6 @@
 {
-  "name": "Net Positive Workout",
-  "short_name": "NetPositive",
+  "name": "Net +VE Workout",
+  "short_name": "Net +VE",
   "description": "Daily workout accountability tracker for friends",
   "start_url": "/",
   "display": "standalone",

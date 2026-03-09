@@ -25,7 +25,7 @@ self.addEventListener('push', (event) => {
   console.log('[SW] push raw payload:', JSON.stringify(raw));
 
   // Handle multiple possible FCM payload structures
-  const title = raw.title || raw.notification?.title || raw.data?.title || 'Net Positive';
+  const title = raw.title || raw.notification?.title || raw.data?.title || 'Net +VE';
   const body  = raw.body  || raw.notification?.body  || raw.data?.body  || 'Workout update!';
   const url   = raw.url   || raw.notification?.url   || raw.data?.url   || '/';
 
