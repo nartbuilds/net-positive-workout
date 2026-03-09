@@ -49,6 +49,7 @@ export const handler = async (event) => {
           title: 'Net +VE 💪',
           body: message,
           url: '/',
+          tag: `workout-${Date.now()}`,
         },
         fcmOptions: { link: '/' },
       },

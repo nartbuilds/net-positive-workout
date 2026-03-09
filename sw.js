@@ -32,6 +32,7 @@ self.addEventListener("push", (event) => {
   const body =
     raw.body || raw.notification?.body || raw.data?.body || "Workout update!";
   const url = raw.url || raw.notification?.url || raw.data?.url || "/";
+  const tag = raw.tag || raw.data?.tag || `workout-${Date.now()}`;
 
   event.waitUntil(
     self.registration.showNotification(title, {
@@ -39,6 +40,7 @@ self.addEventListener("push", (event) => {
       icon: "/icons/icon-96.png",
       badge: "/icons/icon-notification.png",
       vibrate: [200, 100, 200],
+      tag,
       data: { url },
     }),
   );
