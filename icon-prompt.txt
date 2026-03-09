@@ -1,0 +1,5 @@
+A bold, minimal app icon for a fitness accountability app called "Net +VE". Dark background (#0a0a0f). A glowing purple upward arrow or plus-sign motif, rendered in vibrant violet/indigo (#6c63ff). Clean geometric style, no text, suitable for a PWA icon. Square format.
+
+---
+Once you have a logo.png, run:
+npx pwa-asset-generator logo.png ./icons --background "#0a0a0f" --padding "10%"
