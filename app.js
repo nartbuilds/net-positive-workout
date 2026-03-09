@@ -12,6 +12,10 @@ import {
   getDocs,
   setDoc,
   deleteDoc,
+  onSnapshot,
+  query,
+  where,
+  updateDoc,
 } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 import {
   getMessaging,
@@ -98,9 +102,11 @@ const COLORS = [
 let state = {
   participants: [],
   completions: [],
+  fullCompletions: null,
   currentUser: null,
   todayStr: getTodayStr(),
   offlineQueue: [],
+  cache: {},
 };
 
 // ============================================================
@@ -141,16 +147,8 @@ function getAllDaysForParticipant(participant) {
 
 function calcBestStreak(name) {
   const participant = state.participants.find((p) => p.name === name);
-  const allDays = getAllDaysForParticipant(participant);
-  let best = 0,
-    current = 0;
-  for (const date of allDays) {
-    if (isWorkoutComplete(name, date)) {
-      current++;
-      best = Math.max(best, current);
-    } else current = 0;
-  }
-  return best;
+  const stored = participant?.bestStreak ?? 0;
+  return Math.max(stored, calcStreak(name));
 }
 
 function getWeekStart(dateStr) {
@@ -161,23 +159,10 @@ function getWeekStart(dateStr) {
 }
 
 function calcStreak(name) {
-  let streak = 0;
-  const d = new Date();
-  d.setHours(0, 0, 0, 0);
-  // If today isn't done yet, start counting from yesterday so a prior streak stays intact
-  if (!isWorkoutComplete(name, state.todayStr)) {
-    d.setDate(d.getDate() - 1);
-  }
-  for (let i = 0; i < 365; i++) {
-    const dateStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-    if (isWorkoutComplete(name, dateStr)) {
-      streak++;
-      d.setDate(d.getDate() - 1);
-    } else {
-      break;
-    }
-  }
-  return streak;
+  const participant = state.participants.find((p) => p.name === name);
+  if (!participant) return 0;
+  const base = participant.currentStreak ?? 0;
+  return isWorkoutComplete(name, state.todayStr) ? base + 1 : base;
 }
 
 function formatDateLabel(dateStr) {
@@ -223,11 +208,14 @@ function calcFinesForPerson(name, dates) {
 
 function calcFinesForPersonAllTime(name) {
   const participant = state.participants.find((p) => p.name === name);
-  const joinedDate = participant?.joinedDate;
-  const allDates = [...new Set(state.completions.map((c) => c.date))]
-    .filter((d) => !joinedDate || d >= joinedDate)
+  if (!participant) return 0;
+  const base = participant.storedFines ?? 0;
+  const since = participant.finesThrough || participant.joinedDate;
+  if (!since) return base;
+  const recentDates = [...new Set(state.completions.map((c) => c.date))]
+    .filter((d) => d > since && d !== state.todayStr)
     .sort();
-  return calcFinesForPerson(name, allDates);
+  return base + calcFinesForPerson(name, recentDates);
 }
 
 function getCompletedExercisesForDay(name, date) {
@@ -256,19 +244,181 @@ function isWorkoutComplete(personName, date) {
 // FIRESTORE DATA LAYER
 // ============================================================
 
-async function loadData() {
-  if (!db) throw new Error("Firebase not initialized");
-  try {
-    const [participantsSnap, completionsSnap] = await Promise.all([
-      getDocs(collection(db, "participants")),
-      getDocs(collection(db, "completions")),
-    ]);
-    state.participants = participantsSnap.docs.map((d) => d.data());
-    state.completions = completionsSnap.docs.map((d) => d.data());
-  } catch (err) {
-    showToast("Failed to load data. Check your connection.", "error");
-    throw err;
+function rebuildCache() {
+  state.cache = {};
+  for (const p of state.participants) {
+    state.cache[p.name] = {
+      fines: calcFinesForPersonAllTime(p.name),
+      streak: calcStreak(p.name),
+      bestStreak: calcBestStreak(p.name),
+    };
   }
+}
+
+function getYesterdayStr() {
+  const d = new Date();
+  d.setDate(d.getDate() - 1);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+
+async function advanceFineCheckpoints() {
+  if (!db) return;
+  const yesterday = getYesterdayStr();
+
+  for (const p of state.participants) {
+    const through = p.finesThrough || p.joinedDate || yesterday;
+    if (through >= yesterday) continue; // already up to date
+
+    const newDates = [...new Set(state.completions.map((c) => c.date))]
+      .filter((d) => d > through && d <= yesterday)
+      .sort();
+
+    let streak = p.currentStreak ?? 0;
+    let addedFines = 0;
+
+    for (const date of newDates) {
+      if (isWorkoutComplete(p.name, date)) {
+        streak++;
+      } else {
+        const done = getCompletedExercisesForDay(p.name, date);
+        const missed = CONFIG.EXERCISES.filter((ex) => !done.includes(ex.id)).length;
+        addedFines +=
+          missed === CONFIG.EXERCISES.length
+            ? CONFIG.FINE_ALL_MISSED
+            : missed * CONFIG.FINE_PER_EXERCISE;
+        streak = 0;
+      }
+    }
+
+    const updates = {
+      storedFines: (p.storedFines ?? 0) + addedFines,
+      finesThrough: yesterday,
+      currentStreak: streak,
+      bestStreak: Math.max(p.bestStreak ?? 0, streak),
+    };
+
+    try {
+      await updateDoc(doc(db, "participants", p.name), updates);
+      Object.assign(p, updates);
+    } catch (err) {
+      console.warn("[Checkpoint] Failed to advance for", p.name, err.message);
+    }
+  }
+
+  rebuildCache();
+}
+
+async function syncAggregates() {
+  const btn = document.getElementById("btn-sync-aggregates");
+  btn.disabled = true;
+  btn.textContent = "Syncing...";
+  try {
+    const snap = await getDocs(collection(db, "completions"));
+    const allCompletions = snap.docs.map((d) => d.data());
+
+    // Temporarily use full history for calculations
+    const saved = state.completions;
+    state.completions = allCompletions;
+
+    const yesterday = getYesterdayStr();
+
+    for (const p of state.participants) {
+      const allDates = [...new Set(allCompletions.map((c) => c.date))]
+        .filter((d) => !p.joinedDate || d >= p.joinedDate)
+        .filter((d) => d !== state.todayStr)
+        .sort();
+
+      let bestStreak = 0;
+      let currentStreak = 0;
+      let storedFines = 0;
+
+      for (const date of allDates) {
+        if (date > yesterday) break;
+        if (isWorkoutComplete(p.name, date)) {
+          currentStreak++;
+          bestStreak = Math.max(bestStreak, currentStreak);
+        } else {
+          const done = getCompletedExercisesForDay(p.name, date);
+          const missed = CONFIG.EXERCISES.filter((ex) => !done.includes(ex.id)).length;
+          storedFines +=
+            missed === CONFIG.EXERCISES.length
+              ? CONFIG.FINE_ALL_MISSED
+              : missed * CONFIG.FINE_PER_EXERCISE;
+          currentStreak = 0;
+        }
+      }
+
+      const updates = {
+        storedFines,
+        finesThrough: yesterday,
+        currentStreak,
+        bestStreak,
+      };
+      await updateDoc(doc(db, "participants", p.name), updates);
+      Object.assign(p, updates);
+    }
+
+    state.completions = saved;
+    state.fullCompletions = allCompletions;
+    rebuildCache();
+    showToast("Aggregates synced! Reads will now be minimal.", "success");
+  } catch (err) {
+    showToast("Sync failed: " + err.message, "error");
+  } finally {
+    btn.disabled = false;
+    btn.textContent = "Sync Aggregates";
+  }
+}
+
+function initListeners() {
+  if (!db) throw new Error("Firebase not initialized");
+  return new Promise((resolve, reject) => {
+    let gotParticipants = false;
+    let gotCompletions = false;
+    let initialResolved = false;
+
+    function onBothLoaded() {
+      rebuildCache();
+      if (!initialResolved) {
+        initialResolved = true;
+        resolve();
+      } else {
+        renderCurrentView();
+      }
+    }
+
+    onSnapshot(
+      collection(db, "participants"),
+      (snap) => {
+        state.participants = snap.docs.map((d) => d.data());
+        gotParticipants = true;
+        if (gotCompletions) onBothLoaded();
+      },
+      (err) => {
+        if (!initialResolved) reject(err);
+        else console.warn("[Firestore] participants listener error:", err.message);
+      },
+    );
+
+    const ninetyDaysAgo = (() => {
+      const d = new Date();
+      d.setDate(d.getDate() - 90);
+      return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+    })();
+
+    onSnapshot(
+      query(collection(db, "completions"), where("date", ">=", ninetyDaysAgo)),
+      (snap) => {
+        state.completions = snap.docs.map((d) => d.data());
+        gotCompletions = true;
+        if (gotParticipants) onBothLoaded();
+      },
+      (err) => {
+        if (!initialResolved) reject(err);
+        else console.warn("[Firestore] completions listener error:", err.message);
+      },
+    );
+  });
 }
 
 async function saveCompletion(personName, exerciseId, completed) {
@@ -288,6 +438,18 @@ async function saveCompletion(personName, exerciseId, completed) {
   );
   if (idx >= 0) state.completions[idx].completed = completed;
   else state.completions.push(item);
+
+  // Keep full history in sync if it's been lazy-loaded
+  if (state.fullCompletions) {
+    const fidx = state.fullCompletions.findIndex(
+      (c) =>
+        c.date === item.date &&
+        c.person === item.person &&
+        c.exercise === item.exercise,
+    );
+    if (fidx >= 0) state.fullCompletions[fidx].completed = completed;
+    else state.fullCompletions.push(item);
+  }
 
   const docId = `${item.date}_${personName}_${exerciseId}`;
   try {
@@ -320,8 +482,6 @@ async function addParticipant(name, pin, isAdmin = false) {
 }
 
 async function toggleAdmin(name, makeAdmin) {
-  const { updateDoc } =
-    await import("https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js");
   await updateDoc(doc(db, "participants", name), { isAdmin: makeAdmin });
   const p = state.participants.find((p) => p.name === name);
   if (p) p.isAdmin = makeAdmin;
@@ -392,17 +552,17 @@ function loadOfflineQueue() {
 async function flushOfflineQueue() {
   if (!db || !state.offlineQueue.length) return;
   const queue = [...state.offlineQueue];
-  state.offlineQueue = [];
-  saveOfflineQueue();
   for (const { docId, item } of queue) {
     try {
       await setDoc(doc(db, "completions", docId), item);
-    } catch {
-      state.offlineQueue.push({ docId, item });
+      state.offlineQueue = state.offlineQueue.filter((q) => q.docId !== docId);
+      saveOfflineQueue();
+    } catch (err) {
+      console.warn("[Offline] Failed to sync item:", err.message);
+      break;
     }
   }
-  if (state.offlineQueue.length) saveOfflineQueue();
-  else showToast("Offline changes synced!", "success");
+  if (!state.offlineQueue.length) showToast("Offline changes synced!", "success");
 }
 
 // ============================================================
@@ -548,7 +708,7 @@ function renderTodayView() {
     const allDone = isWorkoutComplete(participant.name, state.todayStr);
     const color = getParticipantColor(participant);
     const initials = getInitials(participant.name);
-    const streak = calcStreak(participant.name);
+    const streak = state.cache[participant.name]?.streak ?? calcStreak(participant.name);
 
     const card = document.createElement("div");
     card.className = `workout-card${isMe ? " is-me" : ""}${allDone ? " completed-all" : ""}`;
@@ -706,7 +866,7 @@ function renderLeaderboard() {
 
   // Group pot and days remaining
   const groupPot = state.participants.reduce(
-    (sum, p) => sum + calcFinesForPersonAllTime(p.name),
+    (sum, p) => sum + (state.cache[p.name]?.fines ?? calcFinesForPersonAllTime(p.name)),
     0,
   );
   const endDate = new Date(CONFIG.CHALLENGE_END_DATE + "T00:00:00");
@@ -731,12 +891,12 @@ function renderLeaderboard() {
   `;
 
   const data = state.participants.map((p) => {
-    const totalFines = calcFinesForPersonAllTime(p.name);
+    const totalFines = state.cache[p.name]?.fines ?? calcFinesForPersonAllTime(p.name);
     const totalDays = allDates.filter((d) => d !== state.todayStr);
     const totalCompletions = totalDays.filter((d) =>
       isWorkoutComplete(p.name, d),
     ).length;
-    const streak = calcStreak(p.name);
+    const streak = state.cache[p.name]?.streak ?? calcStreak(p.name);
 
     return { participant: p, totalFines, totalCompletions, streak };
   });
@@ -802,15 +962,31 @@ function renderLeaderboard() {
 // RENDER: HISTORY
 // ============================================================
 
-function renderHistory() {
+async function renderHistory() {
   const container = document.getElementById("history-container");
+
+  if (!state.fullCompletions) {
+    container.innerHTML = '<div class="skeleton skeleton-card"></div>';
+    try {
+      const snap = await getDocs(collection(db, "completions"));
+      state.fullCompletions = snap.docs.map((d) => d.data());
+    } catch (err) {
+      console.warn("[History] Failed to load full completions:", err.message);
+      state.fullCompletions = [...state.completions]; // fallback to 90-day window
+    }
+  }
+
   container.innerHTML = "";
+
+  // Temporarily use full history for rendering
+  const saved = state.completions;
+  state.completions = state.fullCompletions;
 
   state.participants.forEach((participant) => {
     const color = getParticipantColor(participant);
     const allDays = getAllDaysForParticipant(participant);
 
-    // Summary stats
+    // Summary stats — compute directly (state.completions = fullCompletions at this point)
     const totalFines = calcFinesForPerson(participant.name, allDays);
     const streak = calcStreak(participant.name);
     const bestStreak = calcBestStreak(participant.name);
@@ -994,6 +1170,9 @@ function renderHistory() {
         }
       });
   });
+
+  // Restore the 90-day completions window
+  state.completions = saved;
 }
 
 // ============================================================
@@ -1002,7 +1181,7 @@ function renderHistory() {
 
 function renderAdmin() {
   const totalFines = state.participants.reduce(
-    (sum, p) => sum + calcFinesForPersonAllTime(p.name),
+    (sum, p) => sum + (state.cache[p.name]?.fines ?? calcFinesForPersonAllTime(p.name)),
     0,
   );
   document.getElementById("total-pot-amount").textContent = `$${totalFines}`;
@@ -1011,7 +1190,7 @@ function renderAdmin() {
   list.innerHTML = "";
   state.participants.forEach((p) => {
     const color = getParticipantColor(p);
-    const fine = calcFinesForPersonAllTime(p.name);
+    const fine = state.cache[p.name]?.fines ?? calcFinesForPersonAllTime(p.name);
     const row = document.createElement("div");
     row.className = "participant-admin-row";
     row.innerHTML = `
@@ -1082,6 +1261,21 @@ function renderHeader() {
 // ============================================================
 // NAVIGATION
 // ============================================================
+
+function renderCurrentView() {
+  if (!document.getElementById("auth-screen").classList.contains("hidden")) {
+    renderAuthScreen();
+    return;
+  }
+  if (document.getElementById("app").classList.contains("hidden")) return;
+  const v = document.querySelector(".nav-item.active")?.dataset.view;
+  switch (v) {
+    case "today": renderTodayView(); break;
+    case "leaderboard": renderLeaderboard(); break;
+    case "history": renderHistory(); break;
+    case "admin": renderAdmin(); break;
+  }
+}
 
 function showView(viewId) {
   document
@@ -1277,6 +1471,7 @@ function showApp() {
   showView("today");
   checkIOSInstallPrompt();
   initNotifications();
+  advanceFineCheckpoints(); // fire-and-forget: advance stored aggregates to yesterday
 }
 
 // ============================================================
@@ -1363,6 +1558,10 @@ function bindEvents() {
   document
     .getElementById("btn-seed-data")
     .addEventListener("click", () => seedTestData(60));
+
+  document
+    .getElementById("btn-sync-aggregates")
+    .addEventListener("click", syncAggregates);
 
   document.getElementById("ios-banner-close").addEventListener("click", () => {
     document.getElementById("ios-install-banner").classList.add("hidden");
@@ -1569,7 +1768,6 @@ async function seedTestData(daysBack = 60) {
     );
   }
 
-  await loadData();
   showToast(
     `Seeded ${writes.length} records across ${daysBack} days!`,
     "success",
@@ -1578,8 +1776,7 @@ async function seedTestData(daysBack = 60) {
     btn.disabled = false;
     btn.textContent = "Seed Test Data (60 days)";
   }
-  renderHistory();
-  renderAdmin();
+  // onSnapshot listeners will pick up the new data and re-render automatically
 }
 
 // ============================================================
@@ -1614,8 +1811,10 @@ async function init() {
   const startView = urlParams.get("view");
 
   try {
-    await loadData();
-  } catch {
+    await initListeners();
+  } catch (err) {
+    console.warn("[Firestore] Initial load failed:", err.message);
+    showToast("Failed to load data. Check your connection.", "error");
     if (state.currentUser) {
       showApp();
       return;
@@ -1648,44 +1847,14 @@ async function init() {
   showAuthStep("select");
 }
 
-// Auto-refresh every 2 minutes when visible
-let refreshInterval = null;
-document.addEventListener("visibilitychange", () => {
-  if (document.hidden) {
-    clearInterval(refreshInterval);
-  } else {
-    if (!document.getElementById("app").classList.contains("hidden")) {
-      loadData()
-        .then(() => {
-          const v = document.querySelector(".nav-item.active")?.dataset.view;
-          if (v) showView(v);
-        })
-        .catch(() => {});
-    }
-    refreshInterval = setInterval(() => {
-      if (!document.getElementById("app").classList.contains("hidden")) {
-        loadData()
-          .then(() => {
-            const v = document.querySelector(".nav-item.active")?.dataset.view;
-            if (v) showView(v);
-          })
-          .catch(() => {});
-      }
-    }, 120000);
-  }
-});
-
-// Day rollover check
+// Day rollover check — update todayStr at midnight; onSnapshot keeps data fresh
 setInterval(() => {
   const newDay = getTodayStr();
   if (newDay !== state.todayStr) {
     state.todayStr = newDay;
-    const v = document.querySelector(".nav-item.active")?.dataset.view;
-    loadData()
-      .then(() => {
-        if (v) showView(v);
-      })
-      .catch(() => {});
+    advanceFineCheckpoints(); // advance stored aggregates before rebuilding cache
+    rebuildCache();
+    renderCurrentView();
   }
 }, 60000);
 

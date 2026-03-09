@@ -1,19 +1,40 @@
-// Install: take over immediately, clear any old caches
+const CACHE = "netpve-v2";
+const SHELL = ["/", "/index.html", "/styles.css", "/app.js", "/manifest.json"];
+
+// Install: cache app shell, take over immediately
 self.addEventListener("install", (event) => {
   event.waitUntil(
-    caches
-      .keys()
-      .then((keys) => Promise.all(keys.map((k) => caches.delete(k)))),
+    caches.open(CACHE).then((c) => c.addAll(SHELL)),
   );
   self.skipWaiting();
 });
 
-self.addEventListener("activate", () => self.clients.claim());
+// Activate: delete old caches
+self.addEventListener("activate", (event) => {
+  event.waitUntil(
+    caches
+      .keys()
+      .then((keys) =>
+        Promise.all(keys.filter((k) => k !== CACHE).map((k) => caches.delete(k))),
+      ),
+  );
+  self.clients.claim();
+});
 
-// Fetch: always go to network — no caching
+// Fetch: serve shell from cache, pass Firestore/Netlify through to network
 self.addEventListener("fetch", (event) => {
   if (!event.request.url.startsWith("http")) return;
-  event.respondWith(fetch(event.request));
+  if (
+    event.request.url.includes("firestore") ||
+    event.request.url.includes("googleapis") ||
+    event.request.url.includes("netlify") ||
+    event.request.url.includes("gstatic")
+  ) {
+    return; // network-only for API calls
+  }
+  event.respondWith(
+    caches.match(event.request).then((cached) => cached || fetch(event.request)),
+  );
 });
 
 // Push notification handler
