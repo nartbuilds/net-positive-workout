@@ -32,8 +32,8 @@ self.addEventListener('push', (event) => {
   event.waitUntil(
     self.registration.showNotification(title, {
       body,
-      icon: '/icons/icon-192.png',
-      badge: '/icons/icon-96.png',
+      icon: '/icons/icon-notification.png',
+      badge: '/icons/icon-notification.png',
       vibrate: [200, 100, 200],
       data: { url },
       tag: 'workout-update',
