@@ -9,3 +9,7 @@ node_modules/
 
 # Generated config (built from env vars)
 config.js
+
+# Firebase service account key (secret — use FIREBASE_SERVICE_ACCOUNT env var)
+*firebase-adminsdk*.json
+appstore-images.zip
