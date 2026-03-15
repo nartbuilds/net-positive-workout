@@ -212,9 +212,18 @@ function calcFinesForPersonAllTime(name) {
   const base = participant.storedFines ?? 0;
   const since = participant.finesThrough || participant.joinedDate;
   if (!since) return base;
-  const recentDates = [...new Set(state.completions.map((c) => c.date))]
-    .filter((d) => d > since && d !== state.todayStr)
-    .sort();
+  // Build every calendar day from `since` to yesterday — not just days with completion
+  // records — so fully-missed days (no Firestore docs) are still counted as fines.
+  const recentDates = [];
+  const d = new Date(since + "T00:00:00");
+  d.setDate(d.getDate() + 1); // start the day after `since`
+  const end = new Date(state.todayStr + "T00:00:00");
+  while (d < end) {
+    recentDates.push(
+      `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`,
+    );
+    d.setDate(d.getDate() + 1);
+  }
   return base + calcFinesForPerson(name, recentDates);
 }
 
