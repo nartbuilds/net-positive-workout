@@ -278,9 +278,18 @@ async function advanceFineCheckpoints() {
     const through = p.finesThrough || p.joinedDate || yesterday;
     if (through >= yesterday) continue; // already up to date
 
-    const newDates = [...new Set(state.completions.map((c) => c.date))]
-      .filter((d) => d > through && d <= yesterday)
-      .sort();
+    // Build every calendar day from `through` to yesterday — not just days with
+    // completion records — so fully-missed days are correctly counted as fines.
+    const newDates = [];
+    const _d = new Date(through + "T00:00:00");
+    _d.setDate(_d.getDate() + 1); // start day after `through`
+    const _end = new Date(yesterday + "T00:00:00");
+    while (_d <= _end) {
+      newDates.push(
+        `${_d.getFullYear()}-${String(_d.getMonth() + 1).padStart(2, "0")}-${String(_d.getDate()).padStart(2, "0")}`,
+      );
+      _d.setDate(_d.getDate() + 1);
+    }
 
     let streak = p.currentStreak ?? 0;
     let addedFines = 0;
