@@ -341,30 +341,39 @@ async function syncAggregates() {
     const yesterday = getYesterdayStr();
 
     for (const p of state.participants) {
-      const allDates = [...new Set(allCompletions.map((c) => c.date))]
-        .filter((d) => !p.joinedDate || d >= p.joinedDate)
-        .filter((d) => d !== state.todayStr)
-        .sort();
+      // Generate every calendar day from joinedDate to yesterday so fully-missed
+      // days (no Firestore docs) are counted as fines, consistent with history view.
+      const allDates = [];
+      const syncStart = p.joinedDate || yesterday;
+      if (syncStart) {
+        const _d = new Date(syncStart + "T00:00:00");
+        const _end = new Date(yesterday + "T00:00:00");
+        while (_d <= _end) {
+          allDates.push(
+            `${_d.getFullYear()}-${String(_d.getMonth() + 1).padStart(2, "0")}-${String(_d.getDate()).padStart(2, "0")}`,
+          );
+          _d.setDate(_d.getDate() + 1);
+        }
+      }
+
+      // Re-pin state.completions in case the onSnapshot fired during a previous
+      // participant's await updateDoc and replaced it with the 90-day window.
+      state.completions = allCompletions;
 
       let bestStreak = 0;
       let currentStreak = 0;
-      let storedFines = 0;
 
       for (const date of allDates) {
-        if (date > yesterday) break;
         if (isWorkoutComplete(p.name, date)) {
           currentStreak++;
           bestStreak = Math.max(bestStreak, currentStreak);
         } else {
-          const done = getCompletedExercisesForDay(p.name, date);
-          const missed = CONFIG.EXERCISES.filter((ex) => !done.includes(ex.id)).length;
-          storedFines +=
-            missed === CONFIG.EXERCISES.length
-              ? CONFIG.FINE_ALL_MISSED
-              : missed * CONFIG.FINE_PER_EXERCISE;
           currentStreak = 0;
         }
       }
+
+      // Use the same calcFinesForPerson logic as history so the values always match
+      const storedFines = calcFinesForPerson(p.name, allDates);
 
       const updates = {
         storedFines,
