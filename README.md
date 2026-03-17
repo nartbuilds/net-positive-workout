@@ -221,6 +221,22 @@ The existing token registration, Firestore structure, and `notify.js` function a
 
 ---
 
+## Exporting Data
+
+To export all Firestore completions to a local CSV file:
+
+```bash
+node export-completions.js
+```
+
+This reads `FIREBASE_SERVICE_ACCOUNT` from `.env` automatically and writes `completions-YYYY-MM-DD.csv` to the project root. Requires `firebase-admin` (already in `node_modules`).
+
+The CSV has one row per date+person with columns: `date`, `person`, `squats`, `squats_time`, `pushups`, `pushups_time`, `plank`, `plank_time`, sorted by date then person. Time columns contain ISO timestamps for when each exercise was completed, or empty for old records.
+
+> Exported CSV files are gitignored (`completions-*.csv`).
+
+---
+
 ## File Structure
 
 ```
@@ -230,6 +246,7 @@ net-positive-workout/
 ├── app.js                      # Core app logic (ES module, Firestore)
 ├── sw.js                       # Service worker (offline, push handler)
 ├── manifest.json               # PWA manifest (installability, icons)
+├── export-completions.js       # Script: export Firestore completions to CSV
 ├── netlify.toml                # Netlify functions config
 ├── netlify/
 │   └── functions/

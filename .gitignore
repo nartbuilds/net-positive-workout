@@ -13,3 +13,6 @@ config.js
 # Firebase service account key (secret — use FIREBASE_SERVICE_ACCOUNT env var)
 *firebase-adminsdk*.json
 appstore-images.zip
+
+# Exported data
+completions-*.csv

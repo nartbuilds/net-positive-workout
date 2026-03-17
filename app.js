@@ -454,6 +454,7 @@ async function saveCompletion(personName, exerciseId, completed) {
     person: personName,
     exercise: exerciseId,
     completed,
+    completedAt: completed ? new Date().toISOString() : null,
   };
 
   // Optimistic local update
