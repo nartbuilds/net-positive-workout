@@ -113,6 +113,16 @@ let state = {
 // UTILITIES
 // ============================================================
 
+function localISOString(date) {
+  const off = -date.getTimezoneOffset();
+  const sign = off >= 0 ? "+" : "-";
+  const pad = (n) => String(Math.floor(Math.abs(n))).padStart(2, "0");
+  const hh = pad(off / 60);
+  const mm = pad(off % 60);
+  const local = new Date(date.getTime() - date.getTimezoneOffset() * 60000);
+  return `${local.toISOString().slice(0, 19)}${sign}${hh}:${mm}`;
+}
+
 function getTodayStr() {
   const d = new Date();
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
@@ -454,7 +464,7 @@ async function saveCompletion(personName, exerciseId, completed) {
     person: personName,
     exercise: exerciseId,
     completed,
-    completedAt: completed ? new Date().toISOString() : null,
+    completedAt: completed ? localISOString(new Date()) : null,
   };
 
   // Optimistic local update

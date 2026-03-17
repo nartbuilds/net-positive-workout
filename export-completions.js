@@ -20,39 +20,48 @@ const [snap, participantsSnap] = await Promise.all([
 ]);
 const docs = snap.docs.map((d) => d.data());
 
-// Pivot: one row per date+person, exercises as columns
-const exercises = ["squats", "pushups", "plank"];
-const pivot = {};
+// Index existing records by date+person+exercise
+const existing = {};
 for (const c of docs) {
-  const key = `${c.date}|${c.person}`;
-  if (!pivot[key]) pivot[key] = { date: c.date, person: c.person };
-  pivot[key][c.exercise] = c.completed;
-  pivot[key][`${c.exercise}_time`] = c.completedAt ?? "";
+  existing[`${c.date}|${c.person}|${c.exercise}`] = c;
 }
 
-// Fill in every calendar date from earliest to today, every person all false if missing
+// Fill in every calendar date × person × exercise (missing = not completed)
+const exercises = ["squats", "pushups", "plank"];
 const allPersons = participantsSnap.docs.map((d) => d.id).sort();
 const startDate = docs.map((d) => d.date).sort()[0];
 const allDates = [];
 for (let d = new Date(startDate); d <= new Date(); d.setUTCDate(d.getUTCDate() + 1)) {
   allDates.push(d.toISOString().slice(0, 10));
 }
-for (const date of allDates) {
-  for (const person of allPersons) {
-    const key = `${date}|${person}`;
-    if (!pivot[key]) pivot[key] = { date, person };
-  }
+
+const DAY_NAMES = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+
+function isoWeek(dateStr) {
+  // Returns "YYYY-Www"
+  const d = new Date(dateStr);
+  const jan4 = new Date(Date.UTC(d.getUTCFullYear(), 0, 4));
+  const weekNum = Math.ceil(((d - jan4) / 86400000 + jan4.getUTCDay() + 1) / 7);
+  return `${d.getUTCFullYear()}-W${String(weekNum).padStart(2, "0")}`;
 }
 
-const entries = Object.values(pivot);
-entries.sort((a, b) => a.date.localeCompare(b.date) || a.person.localeCompare(b.person));
+const rows = [["date", "day_of_week", "week", "person", "exercise", "completed", "completed_at", "completed_hour"]];
 
-const rows = [["date", "person", ...exercises.flatMap((ex) => [ex, `${ex}_time`])]];
-for (const e of entries) {
-  rows.push([e.date, e.person, ...exercises.flatMap((ex) => [e[ex] ?? false, e[`${ex}_time`] ?? ""])]);
+for (const date of allDates) {
+  const dow = DAY_NAMES[new Date(date).getUTCDay()];
+  const week = isoWeek(date);
+  for (const person of allPersons) {
+    for (const exercise of exercises) {
+      const rec = existing[`${date}|${person}|${exercise}`];
+      const completed = rec?.completed ?? false;
+      const completedAt = rec?.completedAt ?? "";
+      const completedHour = completedAt ? parseInt(completedAt.slice(11, 13)) : "";
+      rows.push([date, dow, week, person, exercise, completed, completedAt, completedHour]);
+    }
+  }
 }
 
 const csv = rows.map((r) => r.join(",")).join("\n");
 const filename = `completions-${new Date().toISOString().slice(0, 10)}.csv`;
 writeFileSync(filename, csv);
-console.log(`Exported ${entries.length} rows to ${filename}`);
+console.log(`Exported ${rows.length - 1} rows to ${filename}`);
