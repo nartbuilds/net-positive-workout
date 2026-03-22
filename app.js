@@ -204,6 +204,79 @@ function getInitials(name) {
     .slice(0, 2);
 }
 
+function avatarHTML(participant, className) {
+  const color = getParticipantColor(participant);
+  if (participant.avatar) {
+    return `<div class="${className}" style="background:${color};padding:0;overflow:hidden;"><img src="${participant.avatar}" style="width:100%;height:100%;object-fit:cover;" alt="${participant.name}"></div>`;
+  }
+  return `<div class="${className}" style="background:${color};">${getInitials(participant.name)}</div>`;
+}
+
+function resizeImageToBase64(file, size = 80, quality = 0.75) {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    const url = URL.createObjectURL(file);
+    img.onload = () => {
+      URL.revokeObjectURL(url);
+      const canvas = document.createElement("canvas");
+      canvas.width = size;
+      canvas.height = size;
+      const ctx = canvas.getContext("2d");
+      const min = Math.min(img.width, img.height);
+      const sx = (img.width - min) / 2;
+      const sy = (img.height - min) / 2;
+      ctx.drawImage(img, sx, sy, min, min, 0, 0, size, size);
+      resolve(canvas.toDataURL("image/jpeg", quality));
+    };
+    img.onerror = reject;
+    img.src = url;
+  });
+}
+
+async function saveAvatar() {
+  const fileInput = document.getElementById("avatar-file-input");
+  const file = fileInput.files[0];
+  if (!file) return;
+  const btn = document.getElementById("btn-save-avatar");
+  btn.disabled = true;
+  btn.textContent = "Saving...";
+  try {
+    const base64 = await resizeImageToBase64(file);
+    await updateDoc(doc(db, "participants", state.currentUser.name), { avatar: base64 });
+    state.currentUser.avatar = base64;
+    const p = state.participants.find((p) => p.name === state.currentUser.name);
+    if (p) p.avatar = base64;
+    closeModal("avatar-modal");
+    renderHeader();
+    renderCurrentView();
+    showToast("Profile photo updated", "success");
+  } catch (err) {
+    showToast("Failed to save photo: " + err.message, "error");
+  } finally {
+    btn.disabled = false;
+    btn.textContent = "Save Photo";
+  }
+}
+
+async function removeAvatar() {
+  const btn = document.getElementById("btn-remove-avatar");
+  btn.disabled = true;
+  try {
+    await updateDoc(doc(db, "participants", state.currentUser.name), { avatar: null });
+    state.currentUser.avatar = null;
+    const p = state.participants.find((p) => p.name === state.currentUser.name);
+    if (p) p.avatar = null;
+    closeModal("avatar-modal");
+    renderHeader();
+    renderCurrentView();
+    showToast("Profile photo removed", "info");
+  } catch (err) {
+    showToast("Failed to remove photo: " + err.message, "error");
+  } finally {
+    btn.disabled = false;
+  }
+}
+
 function calcFinesForPerson(name, dates) {
   let total = 0;
   for (const date of dates) {
@@ -700,7 +773,7 @@ function renderAuthScreen() {
     btn.className = "participant-btn";
     btn.dataset.index = i;
     btn.innerHTML = `
-      <div class="participant-avatar" style="background:${color};">${getInitials(p.name)}</div>
+      ${avatarHTML(p, "participant-avatar")}
       <span>${p.name}</span>
     `;
     btn.addEventListener("click", () => startPINEntry(p));
@@ -812,6 +885,7 @@ function renderTodayView() {
     const card = document.createElement("div");
     card.className = `workout-card${isMe ? " is-me" : ""}${allDone ? " completed-all" : ""}`;
     card.id = `card-${participant.name.replace(/\s+/g, "-")}`;
+    const cardAvatarHTML = avatarHTML(participant, "card-avatar");
 
     const exercisesHTML = CONFIG.EXERCISES.map((ex) => {
       const done = completedToday.includes(ex.id);
@@ -838,7 +912,7 @@ function renderTodayView() {
 
     card.innerHTML = `
       <div class="card-header">
-        <div class="card-avatar" style="background:${color};">${initials}</div>
+        ${cardAvatarHTML}
         <div class="card-info">
           <div class="card-name">${participant.name}</div>
           <div class="card-status">${statusText}</div>
@@ -876,7 +950,7 @@ function renderTodayView() {
         }).join("");
         return `
         <div class="gsm-row">
-          <div class="gsm-avatar" style="background:${color};">${getInitials(p.name)}</div>
+          ${avatarHTML(p, "gsm-avatar")}
           <span class="gsm-name">${p.name}</span>
           <div class="gsm-exercises">${exBadges}</div>
         </div>
@@ -1059,7 +1133,7 @@ function renderLeaderboard() {
     item.className = "leaderboard-item";
     item.innerHTML = `
       <div class="rank-badge ${rankClass}">${rankDisplay}</div>
-      <div class="leaderboard-avatar" style="background:${color};">${getInitials(participant.name)}</div>
+      ${avatarHTML(participant, "leaderboard-avatar")}
       <div class="leaderboard-info">
         <div class="leaderboard-name">${participant.name}</div>
         <div class="leaderboard-stats">
@@ -1201,7 +1275,7 @@ async function renderHistory() {
     section.className = "history-person";
     section.innerHTML = `
       <div class="history-person-header">
-        <div class="history-avatar" style="background:${color};">${getInitials(participant.name)}</div>
+        ${avatarHTML(participant, "history-avatar")}
         <div><div class="history-name">${participant.name}</div></div>
         <span class="history-chevron"></span>
       </div>
@@ -1314,7 +1388,7 @@ function renderAdmin() {
     const row = document.createElement("div");
     row.className = "participant-admin-row";
     row.innerHTML = `
-      <div class="admin-avatar" style="background:${color};">${getInitials(p.name)}</div>
+      ${avatarHTML(p, "admin-avatar")}
       <span class="admin-name">${p.name}${p.isAdmin ? ' <span style="font-size:0.65rem;background:rgba(108,99,255,0.2);color:var(--accent);padding:2px 6px;border-radius:4px;font-weight:700;">ADMIN</span>' : ""}</span>
       <span style="font-size:0.8rem;color:var(--danger);font-weight:700;font-family:var(--font-mono);">
         ${fine > 0 ? `-$${fine}` : "$0"}
@@ -1377,9 +1451,17 @@ function renderAdmin() {
 function renderHeader() {
   if (!state.currentUser) return;
   const color = getParticipantColor(state.currentUser);
-  const initials = getInitials(state.currentUser.name);
-  document.getElementById("header-avatar").style.background = color;
-  document.getElementById("header-avatar").textContent = initials;
+  const avatarEl = document.getElementById("header-avatar");
+  avatarEl.style.background = color;
+  if (state.currentUser.avatar) {
+    avatarEl.style.padding = "0";
+    avatarEl.style.overflow = "hidden";
+    avatarEl.innerHTML = `<img src="${state.currentUser.avatar}" style="width:100%;height:100%;object-fit:cover;" alt="${state.currentUser.name}">`;
+  } else {
+    avatarEl.style.padding = "";
+    avatarEl.style.overflow = "";
+    avatarEl.textContent = getInitials(state.currentUser.name);
+  }
   document.getElementById("header-name").textContent = state.currentUser.name;
 }
 
@@ -1624,6 +1706,33 @@ function bindEvents() {
       clearModal();
       openModal("add-participant-modal");
     });
+
+  document.getElementById("header-user-chip").addEventListener("click", () => {
+    if (!state.currentUser) return;
+    const fileInput = document.getElementById("avatar-file-input");
+    fileInput.value = "";
+    document.getElementById("avatar-preview").src = state.currentUser.avatar || "";
+    document.getElementById("avatar-preview").classList.toggle("hidden", !state.currentUser.avatar);
+    document.getElementById("avatar-preview-placeholder").classList.toggle("hidden", !!state.currentUser.avatar);
+    document.getElementById("btn-remove-avatar").classList.toggle("hidden", !state.currentUser.avatar);
+    document.getElementById("btn-save-avatar").disabled = true;
+    openModal("avatar-modal");
+  });
+
+  document.getElementById("avatar-file-input").addEventListener("change", (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    const preview = document.getElementById("avatar-preview");
+    const placeholder = document.getElementById("avatar-preview-placeholder");
+    preview.src = URL.createObjectURL(file);
+    preview.classList.remove("hidden");
+    placeholder.classList.add("hidden");
+    document.getElementById("btn-save-avatar").disabled = false;
+  });
+
+  document.getElementById("btn-save-avatar").addEventListener("click", saveAvatar);
+  document.getElementById("btn-remove-avatar").addEventListener("click", removeAvatar);
+  document.getElementById("btn-cancel-avatar").addEventListener("click", () => closeModal("avatar-modal"));
 
   document.getElementById("btn-switch-user").addEventListener("click", () => {
     clearCurrentUser();

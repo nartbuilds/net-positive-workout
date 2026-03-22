@@ -144,7 +144,7 @@
           <span class="header-title">Net +VE</span>
         </div>
         <div class="header-user">
-          <div class="user-chip" id="header-user-chip">
+          <div class="user-chip" id="header-user-chip" style="cursor:pointer;" title="Edit profile photo">
             <div class="user-chip-avatar" id="header-avatar"></div>
             <span class="user-chip-name" id="header-name"></span>
           </div>
@@ -480,6 +480,29 @@
             Yes, Remove
           </button>
           <button class="btn-secondary" id="btn-cancel-remove">Cancel</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Profile Photo Modal -->
+    <div class="modal-overlay" id="avatar-modal">
+      <div class="modal">
+        <div class="modal-handle"></div>
+        <h3 class="modal-title">Profile Photo</h3>
+        <div style="display:flex;flex-direction:column;align-items:center;gap:12px;margin-bottom:20px;">
+          <div style="width:96px;height:96px;border-radius:50%;overflow:hidden;background:var(--surface-2);display:flex;align-items:center;justify-content:center;">
+            <img id="avatar-preview" src="" alt="Preview" style="width:100%;height:100%;object-fit:cover;" class="hidden" />
+            <span id="avatar-preview-placeholder" style="font-size:2rem;">📷</span>
+          </div>
+          <label class="btn-secondary" style="cursor:pointer;margin:0;">
+            Choose Photo
+            <input type="file" id="avatar-file-input" accept="image/*" style="display:none;" />
+          </label>
+        </div>
+        <div class="modal-actions">
+          <button class="btn-primary" id="btn-save-avatar" disabled>Save Photo</button>
+          <button class="btn-danger hidden" id="btn-remove-avatar">Remove Photo</button>
+          <button class="btn-secondary" id="btn-cancel-avatar">Cancel</button>
         </div>
       </div>
     </div>
