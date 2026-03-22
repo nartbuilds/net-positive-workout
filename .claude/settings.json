@@ -1,0 +1,16 @@
+{
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Edit|Write|NotebookEdit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "echo '{\"hookSpecificOutput\": {\"hookEventName\": \"PreToolUse\", \"additionalContext\": \"COST REMINDER: This app runs free on Firebase Firestore (free tier), FCM (free), Netlify static hosting (free), and Netlify functions (free tier). Before this change, verify it does NOT introduce: paid APIs/services, new priced dependencies, patterns that could exceed free tier limits (Firestore: 50k reads/20k writes/1GB per day; Netlify functions: 125k requests/month), or any external service calls that incur costs.\"}}'",
+            "statusMessage": "Checking cost impact..."
+          }
+        ]
+      }
+    ]
+  }
+}
