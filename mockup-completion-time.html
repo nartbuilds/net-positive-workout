@@ -1,0 +1,289 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Mockup — Completion Time in Group Tab</title>
+<style>
+  :root {
+    --bg-primary: #0a0a0f;
+    --bg-secondary: #12121a;
+    --bg-card: #1a1a28;
+    --border: #2a2a3d;
+    --text-primary: #f0f0ff;
+    --text-secondary: #9090b0;
+    --text-muted: #5a5a80;
+    --accent: #6c63ff;
+    --success: #00d9a3;
+    --danger: #ff4d6d;
+    --warning: #ffd166;
+    --color-0: #6c63ff;
+    --color-1: #00d9a3;
+    --color-2: #ff6b6b;
+    --color-3: #ffd166;
+    --radius: 16px;
+    --font: "Inter", -apple-system, BlinkMacSystemFont, sans-serif;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg-primary);
+    color: var(--text-primary);
+    font-family: var(--font);
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 40px 16px;
+    gap: 48px;
+  }
+
+  h1 {
+    font-size: 0.75rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--text-muted);
+  }
+
+  .comparison {
+    display: flex;
+    gap: 32px;
+    align-items: flex-start;
+    flex-wrap: wrap;
+    justify-content: center;
+  }
+
+  .column {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    width: 320px;
+  }
+
+  .column-label {
+    font-size: 0.65rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--text-muted);
+    text-align: center;
+  }
+
+  /* ── Group summary card ── */
+  .today-group-summary {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 14px 16px;
+  }
+
+  .today-group-summary.all-done {
+    background: rgba(0, 217, 163, 0.07);
+    border-color: rgba(0, 217, 163, 0.35);
+  }
+
+  .gsm-label {
+    font-size: 0.68rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--text-muted);
+    margin-bottom: 10px;
+  }
+
+  .gsm-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 0;
+  }
+
+  .gsm-row:not(:last-child) {
+    border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+  }
+
+  .gsm-avatar {
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.6rem;
+    font-weight: 800;
+    color: #fff;
+  }
+
+  .gsm-name {
+    flex: 1;
+    font-size: 0.85rem;
+    font-weight: 700;
+  }
+
+  .gsm-exercises {
+    display: flex;
+    gap: 4px;
+  }
+
+  .gsm-ex {
+    font-size: 0.68rem;
+    font-weight: 700;
+    padding: 2px 6px;
+    border-radius: 100px;
+  }
+
+  .gsm-ex.done {
+    background: rgba(0, 217, 163, 0.25);
+    color: var(--success);
+    font-weight: 800;
+    box-shadow: 0 0 6px rgba(0, 217, 163, 0.2);
+  }
+
+  .gsm-ex.pending {
+    background: rgba(90, 90, 128, 0.12);
+    color: var(--text-muted);
+  }
+
+  /* ── NEW: completion time ── */
+  .gsm-time {
+    font-size: 0.68rem;
+    font-weight: 600;
+    color: var(--success);
+    white-space: nowrap;
+    opacity: 0.85;
+    padding-left: 4px;
+  }
+
+  .gsm-time-placeholder {
+    font-size: 0.68rem;
+    color: var(--text-muted);
+    opacity: 0.4;
+    padding-left: 4px;
+    white-space: nowrap;
+  }
+
+  /* ── annotation callout ── */
+  .callout {
+    background: rgba(108, 99, 255, 0.08);
+    border: 1px solid rgba(108, 99, 255, 0.25);
+    border-radius: 10px;
+    padding: 12px 14px;
+    font-size: 0.75rem;
+    color: var(--text-secondary);
+    line-height: 1.55;
+  }
+
+  .callout strong {
+    color: var(--accent);
+  }
+
+  .divider {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    color: var(--text-muted);
+    font-size: 1.2rem;
+    opacity: 0.4;
+    padding-top: 22px;
+  }
+</style>
+</head>
+<body>
+
+<h1>Mockup — Completion Time · Group Today Section</h1>
+
+<div class="comparison">
+
+  <!-- BEFORE -->
+  <div class="column">
+    <div class="column-label">Current</div>
+    <div class="today-group-summary">
+      <div class="gsm-label">Group Today</div>
+
+      <div class="gsm-row">
+        <div class="gsm-avatar" style="background:#00d9a3;">SA</div>
+        <span class="gsm-name">Sarah</span>
+        <div class="gsm-exercises">
+          <span class="gsm-ex done">🦵</span>
+          <span class="gsm-ex done">💪</span>
+          <span class="gsm-ex done">🧘</span>
+        </div>
+      </div>
+
+      <div class="gsm-row">
+        <div class="gsm-avatar" style="background:#6c63ff;">MK</div>
+        <span class="gsm-name">Mike</span>
+        <div class="gsm-exercises">
+          <span class="gsm-ex done">🦵</span>
+          <span class="gsm-ex pending">💪</span>
+          <span class="gsm-ex pending">🧘</span>
+        </div>
+      </div>
+
+      <div class="gsm-row">
+        <div class="gsm-avatar" style="background:#ff6b6b;">JL</div>
+        <span class="gsm-name">Jess</span>
+        <div class="gsm-exercises">
+          <span class="gsm-ex pending">🦵</span>
+          <span class="gsm-ex pending">💪</span>
+          <span class="gsm-ex pending">🧘</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="divider">→</div>
+
+  <!-- AFTER -->
+  <div class="column">
+    <div class="column-label">With Completion Time</div>
+    <div class="today-group-summary">
+      <div class="gsm-label">Group Today</div>
+
+      <!-- fully done: show time -->
+      <div class="gsm-row">
+        <div class="gsm-avatar" style="background:#00d9a3;">SA</div>
+        <span class="gsm-name">Sarah</span>
+        <div class="gsm-exercises">
+          <span class="gsm-ex done">🦵</span>
+          <span class="gsm-ex done">💪</span>
+          <span class="gsm-ex done">🧘</span>
+        </div>
+        <span class="gsm-time">✓ 7:42 AM</span>
+      </div>
+
+      <!-- partial: no time -->
+      <div class="gsm-row">
+        <div class="gsm-avatar" style="background:#6c63ff;">MK</div>
+        <span class="gsm-name">Mike</span>
+        <div class="gsm-exercises">
+          <span class="gsm-ex done">🦵</span>
+          <span class="gsm-ex pending">💪</span>
+          <span class="gsm-ex pending">🧘</span>
+        </div>
+      </div>
+
+      <!-- not started: no time -->
+      <div class="gsm-row">
+        <div class="gsm-avatar" style="background:#ff6b6b;">JL</div>
+        <span class="gsm-name">Jess</span>
+        <div class="gsm-exercises">
+          <span class="gsm-ex pending">🦵</span>
+          <span class="gsm-ex pending">💪</span>
+          <span class="gsm-ex pending">🧘</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="callout">
+      <strong>Logic:</strong> The time shown is the <strong>latest</strong> <code>completedAt</code> timestamp among all exercises for that participant — i.e. when they finished their last exercise. Only shown when all exercises are done.
+    </div>
+  </div>
+
+</div>
+
+</body>
+</html>
