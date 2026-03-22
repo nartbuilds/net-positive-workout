@@ -9,6 +9,7 @@ import {
   getFirestore,
   collection,
   doc,
+  getDoc,
   getDocs,
   setDoc,
   deleteDoc,
@@ -45,7 +46,8 @@ const CONFIG = {
   // History days
   HISTORY_DAYS: 7,
 
-  // Challenge end date (YYYY-MM-DD) — update this to your end date
+  // Challenge start/end dates (YYYY-MM-DD) — update or set via admin panel
+  CHALLENGE_START_DATE: null,
   CHALLENGE_END_DATE: "2026-12-31",
 };
 
@@ -404,6 +406,65 @@ async function syncAggregates() {
   } finally {
     btn.disabled = false;
     btn.textContent = "Sync Aggregates";
+  }
+}
+
+async function loadSettings() {
+  try {
+    const snap = await getDoc(doc(db, "settings", "app"));
+    if (snap.exists()) {
+      const data = snap.data();
+      if (data.challengeEndDate) CONFIG.CHALLENGE_END_DATE = data.challengeEndDate;
+      if (data.challengeStartDate) CONFIG.CHALLENGE_START_DATE = data.challengeStartDate;
+    }
+  } catch (err) {
+    console.warn("[Settings] Failed to load settings:", err.message);
+  }
+}
+
+async function saveStartDate() {
+  const input = document.getElementById("admin-start-date");
+  const val = input.value;
+  if (!val) {
+    showToast("Please enter a valid date", "error");
+    return;
+  }
+  const btn = document.getElementById("btn-save-start-date");
+  btn.disabled = true;
+  btn.textContent = "Saving...";
+  try {
+    await setDoc(doc(db, "settings", "app"), { challengeStartDate: val }, { merge: true });
+    CONFIG.CHALLENGE_START_DATE = val;
+    showToast("Start date updated", "success");
+    renderLeaderboard();
+  } catch (err) {
+    showToast("Failed to save: " + err.message, "error");
+  } finally {
+    btn.disabled = false;
+    btn.textContent = "Save Start Date";
+  }
+}
+
+async function saveEndDate() {
+  const input = document.getElementById("admin-end-date");
+  const val = input.value;
+  if (!val) {
+    showToast("Please enter a valid date", "error");
+    return;
+  }
+  const btn = document.getElementById("btn-save-end-date");
+  btn.disabled = true;
+  btn.textContent = "Saving...";
+  try {
+    await setDoc(doc(db, "settings", "app"), { challengeEndDate: val }, { merge: true });
+    CONFIG.CHALLENGE_END_DATE = val;
+    showToast("End date updated", "success");
+    renderLeaderboard();
+  } catch (err) {
+    showToast("Failed to save: " + err.message, "error");
+  } finally {
+    btn.disabled = false;
+    btn.textContent = "Save End Date";
   }
 }
 
@@ -916,6 +977,28 @@ function renderLeaderboard() {
     0,
     Math.ceil((endDate - todayMidnight) / 86400000),
   );
+
+  let secondStat;
+  if (CONFIG.CHALLENGE_START_DATE) {
+    const startDate = new Date(CONFIG.CHALLENGE_START_DATE + "T00:00:00");
+    if (todayMidnight >= startDate) {
+      const dayOf = Math.floor((todayMidnight - startDate) / 86400000) + 1;
+      const totalDays = Math.max(1, Math.round((endDate - startDate) / 86400000) + 1);
+      secondStat = `
+      <div class="board-stat">
+        <div class="board-stat-value">${dayOf} <span style="font-size:0.85rem;opacity:0.6;">/ ${totalDays}</span></div>
+        <div class="board-stat-label">📆 Day of Challenge</div>
+      </div>`;
+    }
+  }
+  if (!secondStat) {
+    secondStat = `
+      <div class="board-stat">
+        <div class="board-stat-value">${daysRemaining}</div>
+        <div class="board-stat-label">📅 Days Remaining</div>
+      </div>`;
+  }
+
   document.getElementById("board-stats").innerHTML = `
     <div class="board-stats-banner">
       <div class="board-stat">
@@ -923,10 +1006,7 @@ function renderLeaderboard() {
         <div class="board-stat-label">💰 Group Pot</div>
       </div>
       <div class="board-stat-divider"></div>
-      <div class="board-stat">
-        <div class="board-stat-value">${daysRemaining}</div>
-        <div class="board-stat-label">📅 Days Remaining</div>
-      </div>
+      ${secondStat}
     </div>
   `;
 
@@ -1270,6 +1350,11 @@ function renderAdmin() {
     list.appendChild(row);
   });
 
+  const startDateInput = document.getElementById("admin-start-date");
+  if (startDateInput) startDateInput.value = CONFIG.CHALLENGE_START_DATE ?? "";
+  const endDateInput = document.getElementById("admin-end-date");
+  if (endDateInput) endDateInput.value = CONFIG.CHALLENGE_END_DATE;
+
   const notifEl = document.getElementById("notif-status-text");
   if ("Notification" in window) {
     const s = Notification.permission;
@@ -1603,6 +1688,13 @@ function bindEvents() {
     .getElementById("btn-sync-aggregates")
     .addEventListener("click", syncAggregates);
 
+  document
+    .getElementById("btn-save-start-date")
+    .addEventListener("click", saveStartDate);
+  document
+    .getElementById("btn-save-end-date")
+    .addEventListener("click", saveEndDate);
+
   document.getElementById("ios-banner-close").addEventListener("click", () => {
     document.getElementById("ios-install-banner").classList.add("hidden");
     localStorage.setItem("np_ios_banner_dismissed", "1");
@@ -1851,7 +1943,7 @@ async function init() {
   const startView = urlParams.get("view");
 
   try {
-    await initListeners();
+    await Promise.all([initListeners(), loadSettings()]);
   } catch (err) {
     console.warn("[Firestore] Initial load failed:", err.message);
     showToast("Failed to load data. Check your connection.", "error");
