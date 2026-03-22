@@ -334,6 +334,17 @@ function isWorkoutComplete(personName, date) {
   );
 }
 
+function getWorkoutCompletionTime(personName, date) {
+  if (!isWorkoutComplete(personName, date)) return null;
+  const timestamps = state.completions
+    .filter((c) => c.date === date && c.person === personName && c.completed && c.completedAt)
+    .map((c) => new Date(c.completedAt).getTime())
+    .filter((t) => !isNaN(t));
+  if (!timestamps.length) return null;
+  const latest = new Date(Math.max(...timestamps));
+  return latest.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", hour12: true });
+}
+
 // ============================================================
 // FIRESTORE DATA LAYER
 // ============================================================
@@ -906,8 +917,9 @@ function renderTodayView() {
       `;
     }).join("");
 
+    const completionTime = allDone ? getWorkoutCompletionTime(participant.name, state.todayStr) : null;
     const statusText = allDone
-      ? "🎉 All done!"
+      ? `🎉 All done!${completionTime ? ` · ${completionTime}` : ""}`
       : `${completedToday.length}/${CONFIG.EXERCISES.length} completed`;
 
     card.innerHTML = `
@@ -948,10 +960,12 @@ function renderTodayView() {
           const isDone = done.includes(ex.id);
           return `<span class="gsm-ex ${isDone ? "done" : "pending"}">${ex.emoji}</span>`;
         }).join("");
+        const completionTime = getWorkoutCompletionTime(p.name, state.todayStr);
         return `
         <div class="gsm-row">
           ${avatarHTML(p, "gsm-avatar")}
           <span class="gsm-name">${p.name}</span>
+          <span class="gsm-time">${completionTime ?? ""}</span>
           <div class="gsm-exercises">${exBadges}</div>
         </div>
       `;

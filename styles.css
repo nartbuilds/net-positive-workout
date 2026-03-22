@@ -959,6 +959,16 @@ a {
   gap: 4px;
 }
 
+.gsm-time {
+  font-size: 0.72rem;
+  color: var(--text-secondary);
+  font-family: var(--font-mono);
+  white-space: nowrap;
+  width: 60px;
+  text-align: left;
+  flex-shrink: 0;
+}
+
 .gsm-ex {
   font-size: 0.68rem;
   font-weight: 700;
