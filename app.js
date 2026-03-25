@@ -258,6 +258,88 @@ async function saveAvatar() {
   }
 }
 
+let changePinStep = "new"; // "new" | "confirm"
+let changePinNew = "";
+let changePinConfirm = "";
+
+function updateChangePinDots() {
+  const buf = changePinStep === "new" ? changePinNew : changePinConfirm;
+  document.querySelectorAll("#change-pin-dots .pin-dot").forEach((dot, i) => {
+    dot.classList.toggle("filled", i < buf.length);
+  });
+}
+
+function handleChangePinKey(digit) {
+  clearChangePinError();
+  if (changePinStep === "new") {
+    if (changePinNew.length >= 4) return;
+    changePinNew += digit;
+    updateChangePinDots();
+    if (changePinNew.length === 4) setTimeout(advanceChangePinStep, 100);
+  } else {
+    if (changePinConfirm.length >= 4) return;
+    changePinConfirm += digit;
+    updateChangePinDots();
+    if (changePinConfirm.length === 4) setTimeout(submitChangePin, 100);
+  }
+}
+
+function handleChangePinBack() {
+  if (changePinStep === "new") {
+    changePinNew = changePinNew.slice(0, -1);
+  } else {
+    changePinConfirm = changePinConfirm.slice(0, -1);
+  }
+  updateChangePinDots();
+}
+
+function handleChangePinClear() {
+  if (changePinStep === "new") changePinNew = "";
+  else changePinConfirm = "";
+  updateChangePinDots();
+}
+
+function advanceChangePinStep() {
+  changePinStep = "confirm";
+  changePinConfirm = "";
+  document.getElementById("change-pin-title").textContent = "Confirm PIN";
+  updateChangePinDots();
+}
+
+function showChangePinError(msg) {
+  const errorEl = document.getElementById("change-pin-error");
+  errorEl.textContent = msg;
+  errorEl.style.display = "block";
+}
+
+function clearChangePinError() {
+  const errorEl = document.getElementById("change-pin-error");
+  errorEl.textContent = "";
+  errorEl.style.display = "none";
+}
+
+async function submitChangePin() {
+  if (changePinNew !== changePinConfirm) {
+    showChangePinError("PINs don't match — try again");
+    changePinStep = "new";
+    changePinNew = "";
+    changePinConfirm = "";
+    document.getElementById("change-pin-title").textContent = "New PIN";
+    updateChangePinDots();
+    return;
+  }
+  try {
+    await updateDoc(doc(db, "participants", state.currentUser.name), { pin: changePinNew });
+    state.currentUser.pin = changePinNew;
+    const p = state.participants.find((p) => p.name === state.currentUser.name);
+    if (p) p.pin = changePinNew;
+    closeModal("change-pin-modal");
+    showToast("PIN updated", "success");
+  } catch (err) {
+    showChangePinError("Failed to save: " + err.message);
+  }
+}
+
 async function removeAvatar() {
   const btn = document.getElementById("btn-remove-avatar");
   btn.disabled = true;
@@ -1747,6 +1829,24 @@ function bindEvents() {
   document.getElementById("btn-save-avatar").addEventListener("click", saveAvatar);
   document.getElementById("btn-remove-avatar").addEventListener("click", removeAvatar);
   document.getElementById("btn-cancel-avatar").addEventListener("click", () => closeModal("avatar-modal"));
+  document.getElementById("btn-change-pin").addEventListener("click", () => {
+    changePinStep = "new";
+    changePinNew = "";
+    changePinConfirm = "";
+    document.getElementById("change-pin-title").textContent = "New PIN";
+    document.getElementById("change-pin-error").textContent = "";
+    updateChangePinDots();
+    closeModal("avatar-modal");
+    openModal("change-pin-modal");
+  });
+  document.getElementById("change-pin-keypad").addEventListener("click", (e) => {
+    const key = e.target.closest(".pin-key");
+    if (!key) return;
+    if (key.dataset.digit !== undefined) handleChangePinKey(key.dataset.digit);
+    else if (key.dataset.action === "back") handleChangePinBack();
+    else if (key.dataset.action === "clear") handleChangePinClear();
+  });
+  document.getElementById("btn-cancel-pin").addEventListener("click", () => closeModal("change-pin-modal"));
 
   document.getElementById("btn-switch-user").addEventListener("click", () => {
     clearCurrentUser();

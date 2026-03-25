@@ -502,7 +502,42 @@
         <div class="modal-actions">
           <button class="btn-primary" id="btn-save-avatar" disabled>Save Photo</button>
           <button class="btn-danger hidden" id="btn-remove-avatar">Remove Photo</button>
+          <button class="btn-secondary" id="btn-change-pin">Change PIN</button>
           <button class="btn-secondary" id="btn-cancel-avatar">Cancel</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Change PIN Modal -->
+    <div class="modal-overlay" id="change-pin-modal">
+      <div class="modal">
+        <div class="modal-handle"></div>
+        <h3 class="modal-title" id="change-pin-title">New PIN</h3>
+        <div class="pin-section" style="position:relative;">
+          <div class="pin-dots" id="change-pin-dots">
+            <div class="pin-dot"></div>
+            <div class="pin-dot"></div>
+            <div class="pin-dot"></div>
+            <div class="pin-dot"></div>
+          </div>
+          <div id="change-pin-error" style="display:none;position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);background:var(--danger);color:#fff;font-size:0.82rem;font-weight:600;padding:6px 14px;border-radius:20px;white-space:nowrap;pointer-events:none;z-index:10;"></div>
+          <div class="pin-keypad" id="change-pin-keypad">
+            <button class="pin-key" data-digit="1">1</button>
+            <button class="pin-key" data-digit="2">2</button>
+            <button class="pin-key" data-digit="3">3</button>
+            <button class="pin-key" data-digit="4">4</button>
+            <button class="pin-key" data-digit="5">5</button>
+            <button class="pin-key" data-digit="6">6</button>
+            <button class="pin-key" data-digit="7">7</button>
+            <button class="pin-key" data-digit="8">8</button>
+            <button class="pin-key" data-digit="9">9</button>
+            <button class="pin-key pin-clear" data-action="clear">CLR</button>
+            <button class="pin-key" data-digit="0">0</button>
+            <button class="pin-key pin-back" data-action="back">⌫</button>
+          </div>
+        </div>
+        <div class="modal-actions">
+          <button class="btn-secondary" id="btn-cancel-pin">Cancel</button>
         </div>
       </div>
     </div>
