@@ -1009,7 +1009,7 @@ a {
   transition: var(--transition);
 }
 
-.leaderboard-item:first-child {
+.leaderboard-item.rank-first {
   border-color: var(--warning);
   background: linear-gradient(
     135deg,

@@ -1229,7 +1229,7 @@ function renderLeaderboard() {
     const rankClass = rank <= 3 ? rankClasses[rank - 1] : "";
 
     const item = document.createElement("div");
-    item.className = "leaderboard-item";
+    item.className = `leaderboard-item${rank === 1 ? " rank-first" : ""}`;
     item.innerHTML = `
       <div class="rank-badge ${rankClass}">${rankDisplay}</div>
       ${avatarHTML(participant, "leaderboard-avatar")}
@@ -1858,6 +1858,16 @@ function bindEvents() {
     showScreen("auth");
     renderAuthScreen();
     showAuthStep("select");
+  });
+
+  document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState !== "visible" || !state.currentUser) return;
+    const tz = new Date().getTimezoneOffset();
+    if (tz === state.currentUser.timezoneOffset) return;
+    state.currentUser.timezoneOffset = tz;
+    const p = state.participants.find((p) => p.name === state.currentUser.name);
+    if (p) p.timezoneOffset = tz;
+    updateDoc(doc(db, "participants", state.currentUser.name), { timezoneOffset: tz }).catch(() => {});
   });
 
   document.querySelectorAll(".nav-item").forEach((btn) => {
