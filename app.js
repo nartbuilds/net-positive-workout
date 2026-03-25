@@ -525,9 +525,10 @@ async function syncAggregates() {
     const saved = state.completions;
     state.completions = allCompletions;
 
-    const yesterday = getYesterdayStr();
-
     for (const p of state.participants) {
+      // Use each participant's own timezone offset so the cutoff date is correct
+      const yesterday = getYesterdayForOffset(p.timezoneOffset ?? -480);
+
       // Generate every calendar day from joinedDate to yesterday so fully-missed
       // days (no Firestore docs) are counted as fines, consistent with history view.
       const allDates = [];
