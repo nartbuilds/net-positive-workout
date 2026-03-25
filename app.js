@@ -104,7 +104,6 @@ const COLORS = [
 let state = {
   participants: [],
   completions: [],
-  fullCompletions: null,
   currentUser: null,
   todayStr: getTodayStr(),
   offlineQueue: [],
@@ -448,11 +447,21 @@ function getYesterdayStr() {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 }
 
+function getYesterdayForOffset(offsetMinutes) {
+  const now = new Date();
+  // Shift to participant's local time using their stored UTC offset
+  // getTimezoneOffset() is minutes west of UTC: UTC+8 = -480, UTC = 0
+  const local = new Date(now.getTime() - offsetMinutes * 60000);
+  local.setUTCDate(local.getUTCDate() - 1);
+  return `${local.getUTCFullYear()}-${String(local.getUTCMonth() + 1).padStart(2, "0")}-${String(local.getUTCDate()).padStart(2, "0")}`;
+}
+
 async function advanceFineCheckpoints() {
   if (!db) return;
-  const yesterday = getYesterdayStr();
-
+  // Each participant's fines are advanced using their own stored timezone offset,
+  // so no device can prematurely fine someone in a different timezone.
   for (const p of state.participants) {
+    const yesterday = getYesterdayForOffset(p.timezoneOffset ?? -480);
     const through = p.finesThrough || p.joinedDate || yesterday;
     if (through >= yesterday) continue; // already up to date
 
@@ -564,7 +573,6 @@ async function syncAggregates() {
     }
 
     state.completions = saved;
-    state.fullCompletions = allCompletions;
     rebuildCache();
     showToast("Aggregates synced! Reads will now be minimal.", "success");
   } catch (err) {
@@ -704,18 +712,6 @@ async function saveCompletion(personName, exerciseId, completed) {
   if (idx >= 0) state.completions[idx].completed = completed;
   else state.completions.push(item);
 
-  // Keep full history in sync if it's been lazy-loaded
-  if (state.fullCompletions) {
-    const fidx = state.fullCompletions.findIndex(
-      (c) =>
-        c.date === item.date &&
-        c.person === item.person &&
-        c.exercise === item.exercise,
-    );
-    if (fidx >= 0) state.fullCompletions[fidx].completed = completed;
-    else state.fullCompletions.push(item);
-  }
-
   const docId = `${item.date}_${personName}_${exerciseId}`;
   try {
     await setDoc(doc(db, "completions", docId), item);
@@ -740,6 +736,7 @@ async function addParticipant(name, pin, isAdmin = false) {
     colorIndex,
     joinedDate: getTodayStr(),
     isAdmin,
+    timezoneOffset: new Date().getTimezoneOffset(),
   };
   await setDoc(doc(db, "participants", name), participant);
   state.participants.push(participant);
@@ -913,7 +910,12 @@ function handlePinClear() {
 function verifyPIN() {
   if (!pinTarget) return;
   if (String(pinTarget.pin) === pinBuffer) {
+    const tz = new Date().getTimezoneOffset();
+    pinTarget.timezoneOffset = tz;
     saveCurrentUser(pinTarget);
+    const pEntry = state.participants.find((p) => p.name === pinTarget.name);
+    if (pEntry) pEntry.timezoneOffset = tz;
+    updateDoc(doc(db, "participants", pinTarget.name), { timezoneOffset: tz }).catch(() => {});
     document.getElementById("auth-error").classList.remove("visible");
     showApp();
   } else {
@@ -1254,30 +1256,34 @@ function renderLeaderboard() {
 
 async function renderHistory() {
   const container = document.getElementById("history-container");
-
-  if (!state.fullCompletions) {
-    container.innerHTML = '<div class="skeleton skeleton-card"></div>';
-    try {
-      const snap = await getDocs(collection(db, "completions"));
-      state.fullCompletions = snap.docs.map((d) => d.data());
-    } catch (err) {
-      console.warn("[History] Failed to load full completions:", err.message);
-      state.fullCompletions = [...state.completions]; // fallback to 90-day window
-    }
-  }
-
   container.innerHTML = "";
 
-  // Temporarily use full history for rendering
-  const saved = state.completions;
-  state.completions = state.fullCompletions;
+  // Cap history display to the 90-day window already in memory
+  const ninetyDaysAgo = (() => {
+    const d = new Date();
+    d.setDate(d.getDate() - 90);
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+  })();
 
   state.participants.forEach((participant) => {
     const color = getParticipantColor(participant);
-    const allDays = getAllDaysForParticipant(participant);
+    const windowStart = (participant.joinedDate || ninetyDaysAgo) > ninetyDaysAgo
+      ? (participant.joinedDate || ninetyDaysAgo)
+      : ninetyDaysAgo;
+    const allDays = (() => {
+      const days = [];
+      const d = new Date(windowStart + "T00:00:00");
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      while (d <= today) {
+        days.push(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`);
+        d.setDate(d.getDate() + 1);
+      }
+      return days;
+    })();
 
-    // Summary stats — compute directly (state.completions = fullCompletions at this point)
-    const totalFines = calcFinesForPerson(participant.name, allDays);
+    // Summary stats — use stored aggregates for all-time fines/streaks
+    const totalFines = calcFinesForPersonAllTime(participant.name);
     const streak = calcStreak(participant.name);
     const bestStreak = calcBestStreak(participant.name);
     const pastDays = allDays.filter((d) => d < state.todayStr);
@@ -1461,8 +1467,6 @@ async function renderHistory() {
       });
   });
 
-  // Restore the 90-day completions window
-  state.completions = saved;
 }
 
 // ============================================================
@@ -2167,6 +2171,7 @@ async function init() {
 
   try {
     await Promise.all([initListeners(), loadSettings()]);
+    advanceFineCheckpoints(); // pre-login: uses each participant's stored timezone offset
   } catch (err) {
     console.warn("[Firestore] Initial load failed:", err.message);
     showToast("Failed to load data. Check your connection.", "error");
