@@ -108,6 +108,7 @@ let state = {
   todayStr: getTodayStr(),
   offlineQueue: [],
   cache: {},
+  groupCelebratedToday: false,
 };
 
 // ============================================================
@@ -243,7 +244,9 @@ async function saveAvatar() {
   btn.textContent = "Saving...";
   try {
     const base64 = await resizeImageToBase64(file);
-    await updateDoc(doc(db, "participants", state.currentUser.name), { avatar: base64 });
+    await updateDoc(doc(db, "participants", state.currentUser.name), {
+      avatar: base64,
+    });
     state.currentUser.avatar = base64;
     const p = state.participants.find((p) => p.name === state.currentUser.name);
     if (p) p.avatar = base64;
@@ -330,7 +333,9 @@ async function submitChangePin() {
     return;
   }
   try {
-    await updateDoc(doc(db, "participants", state.currentUser.name), { pin: changePinNew });
+    await updateDoc(doc(db, "participants", state.currentUser.name), {
+      pin: changePinNew,
+    });
     state.currentUser.pin = changePinNew;
     const p = state.participants.find((p) => p.name === state.currentUser.name);
     if (p) p.pin = changePinNew;
@@ -345,7 +350,9 @@ async function removeAvatar() {
   const btn = document.getElementById("btn-remove-avatar");
   btn.disabled = true;
   try {
-    await updateDoc(doc(db, "participants", state.currentUser.name), { avatar: null });
+    await updateDoc(doc(db, "participants", state.currentUser.name), {
+      avatar: null,
+    });
     state.currentUser.avatar = null;
     const p = state.participants.find((p) => p.name === state.currentUser.name);
     if (p) p.avatar = null;
@@ -426,7 +433,9 @@ function isSickDay(name, date) {
 async function toggleSickDay(name, date) {
   const participant = state.participants.find((p) => p.name === name);
   if (!participant) return;
-  const prev = Array.isArray(participant.sickDays) ? [...participant.sickDays] : [];
+  const prev = Array.isArray(participant.sickDays)
+    ? [...participant.sickDays]
+    : [];
   const alreadySick = prev.includes(date);
   const next = alreadySick ? prev.filter((d) => d !== date) : [...prev, date];
 
@@ -438,7 +447,12 @@ async function toggleSickDay(name, date) {
     await updateDoc(doc(db, "participants", name), { sickDays: next });
     rebuildCache();
     renderCurrentView();
-    showToast(alreadySick ? "Sick day removed" : "Sick day marked — no fines, streak held", "info");
+    showToast(
+      alreadySick
+        ? "Sick day removed"
+        : "Sick day marked — no fines, streak held",
+      "info",
+    );
   } catch (err) {
     // Roll back
     participant.sickDays = prev;
@@ -450,12 +464,22 @@ async function toggleSickDay(name, date) {
 function getWorkoutCompletionTime(personName, date) {
   if (!isWorkoutComplete(personName, date)) return null;
   const timestamps = state.completions
-    .filter((c) => c.date === date && c.person === personName && c.completed && c.completedAt)
+    .filter(
+      (c) =>
+        c.date === date &&
+        c.person === personName &&
+        c.completed &&
+        c.completedAt,
+    )
     .map((c) => new Date(c.completedAt).getTime())
     .filter((t) => !isNaN(t));
   if (!timestamps.length) return null;
   const latest = new Date(Math.max(...timestamps));
-  return latest.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", hour12: true });
+  return latest.toLocaleTimeString("en-US", {
+    hour: "numeric",
+    minute: "2-digit",
+    hour12: true,
+  });
 }
 
 // ============================================================
@@ -520,7 +544,9 @@ async function advanceFineCheckpoints() {
         // sick day: no fine, streak pauses (no increment, no reset)
       } else {
         const done = getCompletedExercisesForDay(p.name, date);
-        const missed = CONFIG.EXERCISES.filter((ex) => !done.includes(ex.id)).length;
+        const missed = CONFIG.EXERCISES.filter(
+          (ex) => !done.includes(ex.id),
+        ).length;
         addedFines +=
           missed === CONFIG.EXERCISES.length
             ? CONFIG.FINE_ALL_MISSED
@@ -625,8 +651,10 @@ async function loadSettings() {
     const snap = await getDoc(doc(db, "settings", "app"));
     if (snap.exists()) {
       const data = snap.data();
-      if (data.challengeEndDate) CONFIG.CHALLENGE_END_DATE = data.challengeEndDate;
-      if (data.challengeStartDate) CONFIG.CHALLENGE_START_DATE = data.challengeStartDate;
+      if (data.challengeEndDate)
+        CONFIG.CHALLENGE_END_DATE = data.challengeEndDate;
+      if (data.challengeStartDate)
+        CONFIG.CHALLENGE_START_DATE = data.challengeStartDate;
     }
   } catch (err) {
     console.warn("[Settings] Failed to load settings:", err.message);
@@ -644,7 +672,11 @@ async function saveStartDate() {
   btn.disabled = true;
   btn.textContent = "Saving...";
   try {
-    await setDoc(doc(db, "settings", "app"), { challengeStartDate: val }, { merge: true });
+    await setDoc(
+      doc(db, "settings", "app"),
+      { challengeStartDate: val },
+      { merge: true },
+    );
     CONFIG.CHALLENGE_START_DATE = val;
     showToast("Start date updated", "success");
     renderLeaderboard();
@@ -667,7 +699,11 @@ async function saveEndDate() {
   btn.disabled = true;
   btn.textContent = "Saving...";
   try {
-    await setDoc(doc(db, "settings", "app"), { challengeEndDate: val }, { merge: true });
+    await setDoc(
+      doc(db, "settings", "app"),
+      { challengeEndDate: val },
+      { merge: true },
+    );
     CONFIG.CHALLENGE_END_DATE = val;
     showToast("End date updated", "success");
     renderLeaderboard();
@@ -705,7 +741,8 @@ function initListeners() {
       },
       (err) => {
         if (!initialResolved) reject(err);
-        else console.warn("[Firestore] participants listener error:", err.message);
+        else
+          console.warn("[Firestore] participants listener error:", err.message);
       },
     );
 
@@ -724,7 +761,8 @@ function initListeners() {
       },
       (err) => {
         if (!initialResolved) reject(err);
-        else console.warn("[Firestore] completions listener error:", err.message);
+        else
+          console.warn("[Firestore] completions listener error:", err.message);
       },
     );
   });
@@ -753,9 +791,16 @@ async function saveCompletion(personName, exerciseId, completed) {
   try {
     await setDoc(doc(db, "completions", docId), item);
 
-    // Check if all exercises now done — send notification
+    // Check if all exercises now done — send notification + group glory
     if (completed && isWorkoutComplete(personName, state.todayStr)) {
       sendCompletionNotification(personName);
+      if (
+        state.participants.every((p) =>
+          isWorkoutComplete(p.name, state.todayStr),
+        )
+      ) {
+        triggerGroupGlory();
+      }
     }
   } catch (err) {
     state.offlineQueue.push({ docId, item });
@@ -861,7 +906,8 @@ async function flushOfflineQueue() {
       break;
     }
   }
-  if (!state.offlineQueue.length) showToast("Offline changes synced!", "success");
+  if (!state.offlineQueue.length)
+    showToast("Offline changes synced!", "success");
 }
 
 // ============================================================
@@ -952,7 +998,9 @@ function verifyPIN() {
     saveCurrentUser(pinTarget);
     const pEntry = state.participants.find((p) => p.name === pinTarget.name);
     if (pEntry) pEntry.timezoneOffset = tz;
-    updateDoc(doc(db, "participants", pinTarget.name), { timezoneOffset: tz }).catch(() => {});
+    updateDoc(doc(db, "participants", pinTarget.name), {
+      timezoneOffset: tz,
+    }).catch(() => {});
     document.getElementById("auth-error").classList.remove("visible");
     showApp();
   } else {
@@ -1013,7 +1061,8 @@ function renderTodayView() {
     const sickToday = isSickDay(participant.name, state.todayStr);
     const color = getParticipantColor(participant);
     const initials = getInitials(participant.name);
-    const streak = state.cache[participant.name]?.streak ?? calcStreak(participant.name);
+    const streak =
+      state.cache[participant.name]?.streak ?? calcStreak(participant.name);
 
     const card = document.createElement("div");
     card.className = `workout-card${isMe ? " is-me" : ""}${allDone ? " completed-all" : ""}${sickToday && !allDone ? " sick-today" : ""}`;
@@ -1039,7 +1088,9 @@ function renderTodayView() {
       `;
     }).join("");
 
-    const completionTime = allDone ? getWorkoutCompletionTime(participant.name, state.todayStr) : null;
+    const completionTime = allDone
+      ? getWorkoutCompletionTime(participant.name, state.todayStr)
+      : null;
     const statusText = allDone
       ? `🎉 All done!${completionTime ? ` · ${completionTime}` : ""}`
       : sickToday
@@ -1066,12 +1117,22 @@ function renderTodayView() {
       });
       const sickBtn = card.querySelector(".sick-day-btn");
       if (sickBtn) {
-        sickBtn.addEventListener("click", () => toggleSickDay(participant.name, state.todayStr));
+        sickBtn.addEventListener("click", () =>
+          toggleSickDay(participant.name, state.todayStr),
+        );
       }
     }
 
     container.appendChild(card);
   });
+
+  // Trigger group glory if all complete (handles onSnapshot updates + app open after completion)
+  if (
+    state.participants.length > 0 &&
+    state.participants.every((p) => isWorkoutComplete(p.name, state.todayStr))
+  ) {
+    triggerGroupGlory();
+  }
 
   // Group status summary (all participants except current user)
   const others = state.currentUser
@@ -1087,12 +1148,13 @@ function renderTodayView() {
         const done = getCompletedExercisesForDay(p.name, state.todayStr);
         const isOtherSick = isSickDay(p.name, state.todayStr);
         const isOtherDone = isWorkoutComplete(p.name, state.todayStr);
-        const exBadges = isOtherSick && !isOtherDone
-          ? `<span class="gsm-sick-badge">🤒 sick</span>`
-          : CONFIG.EXERCISES.map((ex) => {
-              const isDone = done.includes(ex.id);
-              return `<span class="gsm-ex ${isDone ? "done" : "pending"}">${ex.emoji}</span>`;
-            }).join("");
+        const exBadges =
+          isOtherSick && !isOtherDone
+            ? `<span class="gsm-sick-badge">🤒 sick</span>`
+            : CONFIG.EXERCISES.map((ex) => {
+                const isDone = done.includes(ex.id);
+                return `<span class="gsm-ex ${isDone ? "done" : "pending"}">${ex.emoji}</span>`;
+              }).join("");
         const completionTime = getWorkoutCompletionTime(p.name, state.todayStr);
         return `
         <div class="gsm-row">
@@ -1105,7 +1167,9 @@ function renderTodayView() {
       })
       .join("");
 
-    const allOthersDone = others.every((p) => isWorkoutComplete(p.name, state.todayStr));
+    const allOthersDone = others.every((p) =>
+      isWorkoutComplete(p.name, state.todayStr),
+    );
     if (allOthersDone) summary.classList.add("all-done");
     summary.innerHTML = `<div class="gsm-label">Group Today</div>${rows}`;
     container.appendChild(summary);
@@ -1189,7 +1253,8 @@ function renderLeaderboard() {
 
   // Group pot and days remaining
   const groupPot = state.participants.reduce(
-    (sum, p) => sum + (state.cache[p.name]?.fines ?? calcFinesForPersonAllTime(p.name)),
+    (sum, p) =>
+      sum + (state.cache[p.name]?.fines ?? calcFinesForPersonAllTime(p.name)),
     0,
   );
   const endDate = new Date(CONFIG.CHALLENGE_END_DATE + "T00:00:00");
@@ -1205,7 +1270,10 @@ function renderLeaderboard() {
     const startDate = new Date(CONFIG.CHALLENGE_START_DATE + "T00:00:00");
     if (todayMidnight >= startDate) {
       const dayOf = Math.floor((todayMidnight - startDate) / 86400000) + 1;
-      const totalDays = Math.max(1, Math.round((endDate - startDate) / 86400000) + 1);
+      const totalDays = Math.max(
+        1,
+        Math.round((endDate - startDate) / 86400000) + 1,
+      );
       secondStat = `
       <div class="board-stat">
         <div class="board-stat-value">${dayOf} <span style="font-size:0.85rem;opacity:0.6;">/ ${totalDays}</span></div>
@@ -1233,7 +1301,8 @@ function renderLeaderboard() {
   `;
 
   const data = state.participants.map((p) => {
-    const totalFines = state.cache[p.name]?.fines ?? calcFinesForPersonAllTime(p.name);
+    const totalFines =
+      state.cache[p.name]?.fines ?? calcFinesForPersonAllTime(p.name);
     const totalDays = allDates.filter((d) => d !== state.todayStr);
     const totalCompletions = totalDays.filter((d) =>
       isWorkoutComplete(p.name, d),
@@ -1247,14 +1316,20 @@ function renderLeaderboard() {
       return ts.length ? Math.max(...ts) : 0;
     })();
 
-    return { participant: p, totalFines, totalCompletions, streak, completionTimestamp };
+    return {
+      participant: p,
+      totalFines,
+      totalCompletions,
+      streak,
+      completionTimestamp,
+    };
   });
 
   data.sort((a, b) => {
     if (a.totalFines !== b.totalFines) return a.totalFines - b.totalFines;
     if (a.streak !== b.streak) return b.streak - a.streak;
     if (!a.completionTimestamp && !b.completionTimestamp) return 0;
-    if (!a.completionTimestamp) return 1;  // not completed today → goes after
+    if (!a.completionTimestamp) return 1; // not completed today → goes after
     if (!b.completionTimestamp) return -1;
     return a.completionTimestamp - b.completionTimestamp; // earlier finish → first
   });
@@ -1270,8 +1345,7 @@ function renderLeaderboard() {
     } else {
       const prev = data[i - 1];
       const tied =
-        entry.totalFines === prev.totalFines &&
-        entry.streak === prev.streak;
+        entry.totalFines === prev.totalFines && entry.streak === prev.streak;
       entry.rank = tied ? prev.rank : i + 1;
     }
   });
@@ -1328,16 +1402,19 @@ async function renderHistory() {
 
   state.participants.forEach((participant) => {
     const color = getParticipantColor(participant);
-    const windowStart = (participant.joinedDate || ninetyDaysAgo) > ninetyDaysAgo
-      ? (participant.joinedDate || ninetyDaysAgo)
-      : ninetyDaysAgo;
+    const windowStart =
+      (participant.joinedDate || ninetyDaysAgo) > ninetyDaysAgo
+        ? participant.joinedDate || ninetyDaysAgo
+        : ninetyDaysAgo;
     const allDays = (() => {
       const days = [];
       const d = new Date(windowStart + "T00:00:00");
       const today = new Date();
       today.setHours(0, 0, 0, 0);
       while (d <= today) {
-        days.push(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`);
+        days.push(
+          `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`,
+        );
         d.setDate(d.getDate() + 1);
       }
       return days;
@@ -1533,7 +1610,6 @@ async function renderHistory() {
         }
       });
   });
-
 }
 
 // ============================================================
@@ -1542,7 +1618,8 @@ async function renderHistory() {
 
 function renderAdmin() {
   const totalFines = state.participants.reduce(
-    (sum, p) => sum + (state.cache[p.name]?.fines ?? calcFinesForPersonAllTime(p.name)),
+    (sum, p) =>
+      sum + (state.cache[p.name]?.fines ?? calcFinesForPersonAllTime(p.name)),
     0,
   );
   document.getElementById("total-pot-amount").textContent = `$${totalFines}`;
@@ -1551,7 +1628,8 @@ function renderAdmin() {
   list.innerHTML = "";
   state.participants.forEach((p) => {
     const color = getParticipantColor(p);
-    const fine = state.cache[p.name]?.fines ?? calcFinesForPersonAllTime(p.name);
+    const fine =
+      state.cache[p.name]?.fines ?? calcFinesForPersonAllTime(p.name);
     const row = document.createElement("div");
     row.className = "participant-admin-row";
     row.innerHTML = `
@@ -1644,10 +1722,18 @@ function renderCurrentView() {
   if (document.getElementById("app").classList.contains("hidden")) return;
   const v = document.querySelector(".nav-item.active")?.dataset.view;
   switch (v) {
-    case "today": renderTodayView(); break;
-    case "leaderboard": renderLeaderboard(); break;
-    case "history": renderHistory(); break;
-    case "admin": renderAdmin(); break;
+    case "today":
+      renderTodayView();
+      break;
+    case "leaderboard":
+      renderLeaderboard();
+      break;
+    case "history":
+      renderHistory();
+      break;
+    case "admin":
+      renderAdmin();
+      break;
   }
 }
 
@@ -1733,6 +1819,254 @@ function triggerConfetti(color = "#6c63ff") {
     container.appendChild(piece);
     setTimeout(() => piece.remove(), (delay + duration) * 1000 + 100);
   }
+}
+
+// ============================================================
+// SQUAD GLORY CELEBRATION
+// ============================================================
+
+function hasGroupCelebratedToday() {
+  return localStorage.getItem("np_group_glory") === state.todayStr;
+}
+
+function markGroupCelebratedToday() {
+  state.groupCelebratedToday = true;
+  localStorage.setItem("np_group_glory", state.todayStr);
+}
+
+function applyGloryAmbient() {
+  document.getElementById("app").classList.add("group-glory-day");
+  document.body.classList.add("group-glory-day");
+  const todayHeader = document.querySelector("#view-today .view-header");
+  if (todayHeader && !todayHeader.querySelector(".glory-today-alan")) {
+    const img = document.createElement("img");
+    img.className = "glory-today-alan";
+    img.src = "/alan_heart.png";
+    img.alt = "";
+    todayHeader.appendChild(img);
+  }
+}
+
+function triggerGroupGlory() {
+  if (hasGroupCelebratedToday()) {
+    applyGloryAmbient();
+    return;
+  }
+  markGroupCelebratedToday();
+  applyGloryAmbient();
+  launchMegaConfetti();
+  launchFireworks();
+  playVictoryFanfare();
+  showGroupCompleteOverlay();
+}
+
+function launchMegaConfetti() {
+  const canvas = document.createElement("canvas");
+  canvas.id = "confetti-canvas";
+  canvas.width = window.innerWidth;
+  canvas.height = window.innerHeight;
+  canvas.style.cssText =
+    "position:fixed;inset:0;width:100%;height:100%;pointer-events:none;z-index:10001;";
+  document.body.appendChild(canvas);
+  const ctx = canvas.getContext("2d");
+  const colors = [...COLORS, "#ffd166", "#ffffff"];
+  const pieces = [];
+
+  const corners = [
+    { x: 0, y: window.innerHeight, angleMin: 25, angleMax: 75 },
+    {
+      x: window.innerWidth,
+      y: window.innerHeight,
+      angleMin: 105,
+      angleMax: 155,
+    },
+  ];
+
+  corners.forEach(({ x, y, angleMin, angleMax }) => {
+    for (let i = 0; i < 150; i++) {
+      const angle =
+        ((angleMin + Math.random() * (angleMax - angleMin)) * Math.PI) / 180;
+      const speed = 8 + Math.random() * 10;
+      pieces.push({
+        x,
+        y,
+        vx: Math.cos(angle) * speed,
+        vy: -Math.sin(angle) * speed,
+        color: colors[Math.floor(Math.random() * colors.length)],
+        w: 6 + Math.random() * 8,
+        h: 4 + Math.random() * 4,
+        rotation: Math.random() * Math.PI * 2,
+        rotSpeed: (Math.random() - 0.5) * 0.25,
+        alpha: 1,
+        delay: Math.random() * 0.5,
+        born: false,
+      });
+    }
+  });
+
+  let frame = 0;
+  let rafId;
+  function draw() {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    const t = frame / 60;
+    frame++;
+    let alive = false;
+    for (const p of pieces) {
+      if (t < p.delay) {
+        alive = true;
+        continue;
+      }
+      p.born = true;
+      p.vy += 0.28;
+      p.x += p.vx;
+      p.y += p.vy;
+      p.rotation += p.rotSpeed;
+      if (p.y > canvas.height + 20) p.alpha -= 0.06;
+      if (p.alpha <= 0) continue;
+      alive = true;
+      ctx.save();
+      ctx.globalAlpha = p.alpha;
+      ctx.translate(p.x, p.y);
+      ctx.rotate(p.rotation);
+      ctx.fillStyle = p.color;
+      ctx.fillRect(-p.w / 2, -p.h / 2, p.w, p.h);
+      ctx.restore();
+    }
+    ctx.globalAlpha = 1;
+    if (alive) {
+      rafId = requestAnimationFrame(draw);
+    } else {
+      canvas.remove();
+    }
+  }
+  rafId = requestAnimationFrame(draw);
+  setTimeout(() => {
+    cancelAnimationFrame(rafId);
+    canvas.remove();
+  }, 8000);
+}
+
+function launchFireworks() {
+  const canvas = document.createElement("canvas");
+  canvas.id = "fireworks-canvas";
+  canvas.width = window.innerWidth;
+  canvas.height = window.innerHeight;
+  document.body.appendChild(canvas);
+  const ctx = canvas.getContext("2d");
+
+  const particles = [];
+  const burstColors = [...COLORS];
+
+  for (let b = 0; b < 8; b++) {
+    const bx =
+      0.1 * window.innerWidth + Math.random() * 0.8 * window.innerWidth;
+    const by =
+      0.1 * window.innerHeight + Math.random() * 0.6 * window.innerHeight;
+    const color = burstColors[b % burstColors.length];
+    const delay = b * 350;
+    setTimeout(() => {
+      for (let p = 0; p < 60; p++) {
+        const angle = (p / 60) * Math.PI * 2;
+        const speed = 2 + Math.random() * 4;
+        particles.push({
+          x: bx,
+          y: by,
+          vx: Math.cos(angle) * speed,
+          vy: Math.sin(angle) * speed,
+          alpha: 1,
+          color,
+          size: 3 + Math.random() * 3,
+        });
+      }
+    }, delay);
+  }
+
+  let rafId;
+  function draw() {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    for (const p of particles) {
+      p.vy += 0.08;
+      p.x += p.vx;
+      p.y += p.vy;
+      p.alpha -= 0.012;
+      if (p.alpha <= 0) continue;
+      ctx.globalAlpha = p.alpha;
+      ctx.fillStyle = p.color;
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.globalAlpha = 1;
+    if (particles.some((p) => p.alpha > 0)) {
+      rafId = requestAnimationFrame(draw);
+    } else {
+      canvas.remove();
+    }
+  }
+  rafId = requestAnimationFrame(draw);
+  setTimeout(() => {
+    cancelAnimationFrame(rafId);
+    canvas.remove();
+  }, 6000);
+}
+
+function playVictoryFanfare() {
+  try {
+    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    const notes = [523.25, 659.25, 783.99, 1046.5]; // C5 E5 G5 C6
+    notes.forEach((freq, i) => {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.type = "triangle";
+      osc.frequency.value = freq;
+      const start = ctx.currentTime + i * 0.18;
+      gain.gain.setValueAtTime(0.3, start);
+      gain.gain.exponentialRampToValueAtTime(0.001, start + 0.5);
+      osc.start(start);
+      osc.stop(start + 0.5);
+    });
+  } catch {} // silently fail if audio blocked
+}
+
+function showGroupCompleteOverlay() {
+  const existing = document.querySelector(".group-complete-overlay");
+  if (existing) existing.remove();
+
+  const overlay = document.createElement("div");
+  overlay.className = "group-complete-overlay";
+
+  const avatarsHTML = state.participants
+    .map((p, i) => {
+      const color = getParticipantColor(p);
+      const inner = p.avatar
+        ? `<img src="${p.avatar}" style="width:100%;height:100%;object-fit:cover;border-radius:50%;" alt="${p.name}">`
+        : getInitials(p.name);
+      return `
+      <div class="glory-avatar-wrap" style="animation-delay:${i * 0.3}s">
+        <div class="glory-avatar" style="background:${color};">${inner}</div>
+        <div class="glory-name">${p.name.split(" ")[0]}</div>
+      </div>`;
+    })
+    .join("");
+
+  overlay.innerHTML = `
+    <h1 class="glory-title">💪 SQUAD COMPLETE 💪</h1>
+    <p class="glory-subtitle">Every single one of you showed up today.</p>
+    <div class="glory-avatars">${avatarsHTML}</div>
+    <p class="glory-dismiss">Tap anywhere to dismiss</p>
+  `;
+
+  document.body.appendChild(overlay);
+
+  const dismiss = () => {
+    overlay.style.transition = "opacity 0.4s";
+    overlay.style.opacity = "0";
+    setTimeout(() => overlay.remove(), 400);
+  };
+  overlay.addEventListener("click", dismiss);
+  setTimeout(dismiss, 6000);
 }
 
 // ============================================================
@@ -1878,28 +2212,43 @@ function bindEvents() {
     if (!state.currentUser) return;
     const fileInput = document.getElementById("avatar-file-input");
     fileInput.value = "";
-    document.getElementById("avatar-preview").src = state.currentUser.avatar || "";
-    document.getElementById("avatar-preview").classList.toggle("hidden", !state.currentUser.avatar);
-    document.getElementById("avatar-preview-placeholder").classList.toggle("hidden", !!state.currentUser.avatar);
-    document.getElementById("btn-remove-avatar").classList.toggle("hidden", !state.currentUser.avatar);
+    document.getElementById("avatar-preview").src =
+      state.currentUser.avatar || "";
+    document
+      .getElementById("avatar-preview")
+      .classList.toggle("hidden", !state.currentUser.avatar);
+    document
+      .getElementById("avatar-preview-placeholder")
+      .classList.toggle("hidden", !!state.currentUser.avatar);
+    document
+      .getElementById("btn-remove-avatar")
+      .classList.toggle("hidden", !state.currentUser.avatar);
     document.getElementById("btn-save-avatar").disabled = true;
     openModal("avatar-modal");
   });
 
-  document.getElementById("avatar-file-input").addEventListener("change", (e) => {
-    const file = e.target.files[0];
-    if (!file) return;
-    const preview = document.getElementById("avatar-preview");
-    const placeholder = document.getElementById("avatar-preview-placeholder");
-    preview.src = URL.createObjectURL(file);
-    preview.classList.remove("hidden");
-    placeholder.classList.add("hidden");
-    document.getElementById("btn-save-avatar").disabled = false;
-  });
+  document
+    .getElementById("avatar-file-input")
+    .addEventListener("change", (e) => {
+      const file = e.target.files[0];
+      if (!file) return;
+      const preview = document.getElementById("avatar-preview");
+      const placeholder = document.getElementById("avatar-preview-placeholder");
+      preview.src = URL.createObjectURL(file);
+      preview.classList.remove("hidden");
+      placeholder.classList.add("hidden");
+      document.getElementById("btn-save-avatar").disabled = false;
+    });
 
-  document.getElementById("btn-save-avatar").addEventListener("click", saveAvatar);
-  document.getElementById("btn-remove-avatar").addEventListener("click", removeAvatar);
-  document.getElementById("btn-cancel-avatar").addEventListener("click", () => closeModal("avatar-modal"));
+  document
+    .getElementById("btn-save-avatar")
+    .addEventListener("click", saveAvatar);
+  document
+    .getElementById("btn-remove-avatar")
+    .addEventListener("click", removeAvatar);
+  document
+    .getElementById("btn-cancel-avatar")
+    .addEventListener("click", () => closeModal("avatar-modal"));
   document.getElementById("btn-change-pin").addEventListener("click", () => {
     changePinStep = "new";
     changePinNew = "";
@@ -1910,14 +2259,19 @@ function bindEvents() {
     closeModal("avatar-modal");
     openModal("change-pin-modal");
   });
-  document.getElementById("change-pin-keypad").addEventListener("click", (e) => {
-    const key = e.target.closest(".pin-key");
-    if (!key) return;
-    if (key.dataset.digit !== undefined) handleChangePinKey(key.dataset.digit);
-    else if (key.dataset.action === "back") handleChangePinBack();
-    else if (key.dataset.action === "clear") handleChangePinClear();
-  });
-  document.getElementById("btn-cancel-pin").addEventListener("click", () => closeModal("change-pin-modal"));
+  document
+    .getElementById("change-pin-keypad")
+    .addEventListener("click", (e) => {
+      const key = e.target.closest(".pin-key");
+      if (!key) return;
+      if (key.dataset.digit !== undefined)
+        handleChangePinKey(key.dataset.digit);
+      else if (key.dataset.action === "back") handleChangePinBack();
+      else if (key.dataset.action === "clear") handleChangePinClear();
+    });
+  document
+    .getElementById("btn-cancel-pin")
+    .addEventListener("click", () => closeModal("change-pin-modal"));
 
   document.getElementById("btn-switch-user").addEventListener("click", () => {
     clearCurrentUser();
@@ -1933,7 +2287,9 @@ function bindEvents() {
     state.currentUser.timezoneOffset = tz;
     const p = state.participants.find((p) => p.name === state.currentUser.name);
     if (p) p.timezoneOffset = tz;
-    updateDoc(doc(db, "participants", state.currentUser.name), { timezoneOffset: tz }).catch(() => {});
+    updateDoc(doc(db, "participants", state.currentUser.name), {
+      timezoneOffset: tz,
+    }).catch(() => {});
   });
 
   document.querySelectorAll(".nav-item").forEach((btn) => {
@@ -2289,6 +2645,10 @@ setInterval(() => {
   const newDay = getTodayStr();
   if (newDay !== state.todayStr) {
     state.todayStr = newDay;
+    state.groupCelebratedToday = false;
+    document.getElementById("app").classList.remove("group-glory-day");
+    document.body.classList.remove("group-glory-day");
+    document.querySelector(".glory-today-alan")?.remove();
     advanceFineCheckpoints(); // advance stored aggregates before rebuilding cache
     rebuildCache();
     renderCurrentView();

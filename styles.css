@@ -701,6 +701,36 @@ a {
   margin-bottom: 16px;
 }
 
+.group-glory-day #view-today .view-header {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  grid-template-rows: auto auto auto;
+  align-items: center;
+}
+
+.group-glory-day #view-today .view-header h2 { grid-column: 1; }
+.group-glory-day #view-today .view-header p  { grid-column: 1; }
+.group-glory-day #view-today .view-header .deadline-badge { grid-column: 1; justify-self: start; }
+
+
+@keyframes alanFloat {
+  0%   { transform: translateY(0px) scale(1); }
+  50%  { transform: translateY(-10px) scale(1.05); }
+  100% { transform: translateY(0px) scale(1); }
+}
+
+.glory-today-alan {
+  width: 120px;
+  height: 120px;
+  object-fit: contain;
+  grid-column: 2;
+  grid-row: 1 / 4;
+  align-self: center;
+  justify-self: end;
+  animation: alanFloat 3s ease-in-out infinite;
+  filter: drop-shadow(0 2px 12px rgba(255, 107, 107, 0.5));
+}
+
 .view-title {
   font-size: 1.6rem;
   font-weight: 900;
@@ -1617,7 +1647,7 @@ a {
   width: 100%;
   height: 100%;
   pointer-events: none;
-  z-index: 9998;
+  z-index: 10001;
   overflow: hidden;
 }
 
@@ -1635,6 +1665,202 @@ a {
     transform: translateY(105vh) rotate(720deg);
     opacity: 0;
   }
+}
+
+/* ============================================
+   SQUAD GLORY CELEBRATION
+   ============================================ */
+
+#fireworks-canvas {
+  position: fixed;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  z-index: 9998;
+}
+
+.group-complete-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.88);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  z-index: 9999;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  animation: overlayIn 0.5s cubic-bezier(0.34, 1.56, 0.64, 1);
+  padding: 32px 24px;
+  text-align: center;
+  cursor: pointer;
+}
+
+@keyframes overlayIn {
+  from { transform: translateY(100%); opacity: 0; }
+  to   { transform: translateY(0);    opacity: 1; }
+}
+
+
+
+.glory-title {
+  font-size: clamp(2rem, 8vw, 3.5rem);
+  font-weight: 900;
+  background: linear-gradient(135deg, #ffd166, #00d9a3, #6c63ff, #ff6b6b, #ffd166);
+  background-size: 300% 300%;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  animation: rainbowShift 2s ease infinite, titlePulse 0.6s ease infinite alternate;
+  margin-bottom: 12px;
+}
+
+@keyframes titlePulse {
+  from { transform: scale(1); }
+  to   { transform: scale(1.06); }
+}
+
+.glory-subtitle {
+  color: var(--text-secondary);
+  font-size: 1rem;
+  margin-bottom: 32px;
+}
+
+.glory-avatars {
+  display: flex;
+  gap: 20px;
+  justify-content: center;
+  flex-wrap: wrap;
+}
+
+.glory-avatar-wrap {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  opacity: 0;
+  animation: avatarBounceIn 0.6s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+}
+
+@keyframes avatarBounceIn {
+  from { transform: scale(0) rotate(-15deg); opacity: 0; }
+  to   { transform: scale(1) rotate(0deg);   opacity: 1; }
+}
+
+.glory-avatar {
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.4rem;
+  font-weight: 900;
+  color: white;
+  overflow: hidden;
+  animation: avatarGlow 1s ease infinite alternate;
+}
+
+@keyframes avatarGlow {
+  from { box-shadow: 0 0 12px rgba(255, 255, 255, 0.3); }
+  to   { box-shadow: 0 0 32px rgba(255, 255, 255, 0.7); }
+}
+
+.glory-name {
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: var(--text-secondary);
+}
+
+.glory-dismiss {
+  margin-top: 32px;
+  font-size: 0.8rem;
+  color: var(--text-muted);
+}
+
+
+/* Ambient glory mode — rainbow header/nav borders */
+@keyframes rainbowShift {
+  0%   { background-position: 0% 50%; }
+  50%  { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
+
+.group-glory-day .app-header {
+  border-bottom: 2px solid transparent;
+  background:
+    linear-gradient(var(--bg-secondary), var(--bg-secondary)) padding-box,
+    linear-gradient(135deg, #6c63ff, #00d9a3, #ffd166, #ff6b6b, #6c63ff) border-box;
+  background-size: auto, 300% 300%;
+  animation: rainbowShift 8s ease infinite;
+}
+
+.group-glory-day .app-nav {
+  border-top: 2px solid transparent;
+  background:
+    linear-gradient(var(--bg-secondary), var(--bg-secondary)) padding-box,
+    linear-gradient(135deg, #ff6b6b, #ffd166, #00d9a3, #6c63ff, #ff6b6b) border-box;
+  background-size: auto, 300% 300%;
+  animation: rainbowShift 8s ease infinite reverse;
+}
+
+/* Aurora background wash */
+@keyframes auroraDrift {
+  0%   { opacity: 0.55; filter: hue-rotate(0deg); }
+  50%  { opacity: 0.75; filter: hue-rotate(180deg); }
+  100% { opacity: 0.55; filter: hue-rotate(360deg); }
+}
+
+body.group-glory-day::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+  background:
+    radial-gradient(ellipse 80% 60% at 20% 30%, rgba(108, 99, 255, 0.18) 0%, transparent 70%),
+    radial-gradient(ellipse 60% 80% at 80% 70%, rgba(0, 217, 163, 0.16) 0%, transparent 70%),
+    radial-gradient(ellipse 70% 50% at 50% 10%, rgba(255, 209, 102, 0.12) 0%, transparent 70%),
+    radial-gradient(ellipse 50% 70% at 10% 80%, rgba(255, 107, 107, 0.14) 0%, transparent 70%);
+  animation: auroraDrift 12s ease infinite;
+}
+
+/* Ensure app content sits above the aurora */
+body.group-glory-day #app {
+  position: relative;
+  z-index: 1;
+}
+
+/* Rainbow view titles */
+@keyframes titleRainbow {
+  0%   { background-position: 0% 50%; }
+  50%  { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
+
+.group-glory-day .view-title {
+  background: linear-gradient(135deg, #6c63ff, #00d9a3, #ffd166, #ff6b6b, #a29bfe, #6c63ff);
+  background-size: 300% 300%;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  animation: titleRainbow 4s ease infinite;
+}
+
+/* Workout cards — shifting multi-color border glow */
+@keyframes cardGloryPulse {
+  0%   { outline-color: rgba(108, 99, 255, 0.7); }
+  25%  { outline-color: rgba(0, 217, 163, 0.7); }
+  50%  { outline-color: rgba(255, 209, 102, 0.7); }
+  75%  { outline-color: rgba(255, 107, 107, 0.7); }
+  100% { outline-color: rgba(108, 99, 255, 0.7); }
+}
+
+.group-glory-day .workout-card {
+  outline: 2px solid rgba(108, 99, 255, 0.7);
+  outline-offset: -1px;
+  animation: cardGloryPulse 6s ease infinite;
 }
 
 /* ============================================
