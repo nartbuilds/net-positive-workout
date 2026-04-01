@@ -1705,7 +1705,9 @@ a {
 
 
 .glory-title {
-  font-size: clamp(2rem, 8vw, 3.5rem);
+  font-size: clamp(1.4rem, 6vw, 3rem);
+  word-break: break-word;
+  text-align: center;
   font-weight: 900;
   background: linear-gradient(135deg, #ffd166, #00d9a3, #6c63ff, #ff6b6b, #ffd166);
   background-size: 300% 300%;
