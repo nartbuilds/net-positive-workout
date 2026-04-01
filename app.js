@@ -1748,6 +1748,11 @@ function showView(viewId) {
   if (viewEl) viewEl.classList.add("active");
   const navEl = document.querySelector(`.nav-item[data-view="${viewId}"]`);
   if (navEl) navEl.classList.add("active");
+  const floatAlan = document.getElementById("glory-alan-float");
+  if (floatAlan) {
+    floatAlan.style.display = (viewId === "leaderboard" || viewId === "history") ? "block" : "none";
+  }
+
   switch (viewId) {
     case "today":
       renderTodayView();
@@ -1844,6 +1849,13 @@ function applyGloryAmbient() {
     img.src = "/alan_heart.png";
     img.alt = "";
     todayHeader.appendChild(img);
+  }
+  if (!document.getElementById("glory-alan-float")) {
+    const img = document.createElement("img");
+    img.id = "glory-alan-float";
+    img.src = "/alan_heart.png";
+    img.alt = "";
+    document.body.appendChild(img);
   }
 }
 
@@ -2345,6 +2357,14 @@ function bindEvents() {
     .addEventListener("click", () => seedTestData(60));
 
   document
+    .getElementById("btn-reset-squad-glory")
+    .addEventListener("click", () => {
+      localStorage.removeItem("np_group_glory");
+      state.groupCelebratedToday = false;
+      showToast("Squad glory reset — will trigger again next completion", "success");
+    });
+
+  document
     .getElementById("btn-sync-aggregates")
     .addEventListener("click", syncAggregates);
 
@@ -2649,6 +2669,7 @@ setInterval(() => {
     document.getElementById("app").classList.remove("group-glory-day");
     document.body.classList.remove("group-glory-day");
     document.querySelector(".glory-today-alan")?.remove();
+    document.getElementById("glory-alan-float")?.remove();
     advanceFineCheckpoints(); // advance stored aggregates before rebuilding cache
     rebuildCache();
     renderCurrentView();
