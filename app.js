@@ -1239,13 +1239,24 @@ function renderLeaderboard() {
       isWorkoutComplete(p.name, d),
     ).length;
     const streak = state.cache[p.name]?.streak ?? calcStreak(p.name);
+    const completionTimestamp = (() => {
+      const ts = state.completions
+        .filter((c) => c.person === p.name && c.completed && c.completedAt)
+        .map((c) => new Date(c.completedAt).getTime())
+        .filter((t) => !isNaN(t));
+      return ts.length ? Math.max(...ts) : 0;
+    })();
 
-    return { participant: p, totalFines, totalCompletions, streak };
+    return { participant: p, totalFines, totalCompletions, streak, completionTimestamp };
   });
 
   data.sort((a, b) => {
     if (a.totalFines !== b.totalFines) return a.totalFines - b.totalFines;
-    return b.streak - a.streak;
+    if (a.streak !== b.streak) return b.streak - a.streak;
+    if (!a.completionTimestamp && !b.completionTimestamp) return 0;
+    if (!a.completionTimestamp) return 1;  // not completed today → goes after
+    if (!b.completionTimestamp) return -1;
+    return a.completionTimestamp - b.completionTimestamp; // earlier finish → first
   });
 
   const rankEmojis = ["🥇", "🥈", "🥉"];
