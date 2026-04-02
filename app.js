@@ -173,10 +173,39 @@ function getWeekStart(dateStr) {
 function calcStreak(name) {
   const participant = state.participants.find((p) => p.name === name);
   if (!participant) return 0;
-  const base = participant.currentStreak ?? 0;
-  if (isWorkoutComplete(name, state.todayStr)) return base + 1;
-  if (isSickDay(name, state.todayStr)) return base; // paused: no increment, no reset
-  return base;
+  let streak = participant.currentStreak ?? 0;
+
+  // Use the participant's own timezone to determine their "today", so viewers
+  // in a different timezone don't see a stale streak during the gap window
+  // between the viewer's midnight and the participant's midnight.
+  const participantToday =
+    participant.timezoneOffset != null
+      ? getTodayStrForOffset(participant.timezoneOffset)
+      : state.todayStr;
+
+  // Walk any days between finesThrough+1 and the participant's today that
+  // haven't been checkpointed yet (e.g. participant is behind viewer's TZ).
+  const through = participant.finesThrough || participant.joinedDate;
+  if (through && through < participantToday) {
+    const d = new Date(through + "T00:00:00");
+    d.setDate(d.getDate() + 1);
+    const participantTodayDate = new Date(participantToday + "T00:00:00");
+    while (d < participantTodayDate) {
+      const dateStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+      if (isWorkoutComplete(name, dateStr)) {
+        streak++;
+      } else if (isSickDay(name, dateStr)) {
+        // sick day: no increment, no reset
+      } else {
+        streak = 0;
+      }
+      d.setDate(d.getDate() + 1);
+    }
+  }
+
+  if (isWorkoutComplete(name, participantToday)) return streak + 1;
+  if (isSickDay(name, participantToday)) return streak; // paused: no increment, no reset
+  return streak;
 }
 
 function formatDateLabel(dateStr) {
@@ -390,10 +419,14 @@ function calcFinesForPersonAllTime(name) {
   if (!since) return base;
   // Build every calendar day from `since` to yesterday — not just days with completion
   // records — so fully-missed days (no Firestore docs) are still counted as fines.
+  const participantToday =
+    participant.timezoneOffset != null
+      ? getTodayStrForOffset(participant.timezoneOffset)
+      : state.todayStr;
   const recentDates = [];
   const d = new Date(since + "T00:00:00");
   d.setDate(d.getDate() + 1); // start the day after `since`
-  const end = new Date(state.todayStr + "T00:00:00");
+  const end = new Date(participantToday + "T00:00:00");
   while (d < end) {
     recentDates.push(
       `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`,
@@ -523,6 +556,12 @@ function getYesterdayForOffset(offsetMinutes) {
   // getTimezoneOffset() is minutes west of UTC: UTC+8 = -480, UTC = 0
   const local = new Date(now.getTime() - offsetMinutes * 60000);
   local.setUTCDate(local.getUTCDate() - 1);
+  return `${local.getUTCFullYear()}-${String(local.getUTCMonth() + 1).padStart(2, "0")}-${String(local.getUTCDate()).padStart(2, "0")}`;
+}
+
+function getTodayStrForOffset(offsetMinutes) {
+  const now = new Date();
+  const local = new Date(now.getTime() - offsetMinutes * 60000);
   return `${local.getUTCFullYear()}-${String(local.getUTCMonth() + 1).padStart(2, "0")}-${String(local.getUTCDate()).padStart(2, "0")}`;
 }
 
@@ -1147,7 +1186,14 @@ function renderTodayView() {
   // Trigger group glory if all complete (handles onSnapshot updates + app open after completion)
   if (
     state.participants.length > 0 &&
-    state.participants.every((p) => isWorkoutComplete(p.name, state.todayStr))
+    state.participants.every((p) =>
+      isWorkoutComplete(
+        p.name,
+        p.timezoneOffset != null
+          ? getTodayStrForOffset(p.timezoneOffset)
+          : state.todayStr,
+      ),
+    )
   ) {
     triggerGroupGlory();
   }
@@ -1162,10 +1208,14 @@ function renderTodayView() {
 
     const rows = others
       .map((p) => {
+        const pToday =
+          p.timezoneOffset != null
+            ? getTodayStrForOffset(p.timezoneOffset)
+            : state.todayStr;
         const color = getParticipantColor(p);
-        const done = getCompletedExercisesForDay(p.name, state.todayStr);
-        const isOtherSick = isSickDay(p.name, state.todayStr);
-        const isOtherDone = isWorkoutComplete(p.name, state.todayStr);
+        const done = getCompletedExercisesForDay(p.name, pToday);
+        const isOtherSick = isSickDay(p.name, pToday);
+        const isOtherDone = isWorkoutComplete(p.name, pToday);
         const exBadges =
           isOtherSick && !isOtherDone
             ? `<span class="gsm-sick-badge">🤒 sick</span>`
@@ -1173,7 +1223,7 @@ function renderTodayView() {
                 const isDone = done.includes(ex.id);
                 return `<span class="gsm-ex ${isDone ? "done" : "pending"}">${ex.emoji}</span>`;
               }).join("");
-        const completionTime = getWorkoutCompletionTime(p.name, state.todayStr);
+        const completionTime = getWorkoutCompletionTime(p.name, pToday);
         return `
         <div class="gsm-row">
           ${avatarHTML(p, "gsm-avatar")}
@@ -1186,7 +1236,12 @@ function renderTodayView() {
       .join("");
 
     const allOthersDone = others.every((p) =>
-      isWorkoutComplete(p.name, state.todayStr),
+      isWorkoutComplete(
+        p.name,
+        p.timezoneOffset != null
+          ? getTodayStrForOffset(p.timezoneOffset)
+          : state.todayStr,
+      ),
     );
     if (allOthersDone) summary.classList.add("all-done");
     summary.innerHTML = `<div class="gsm-label">Group Today</div>${rows}`;
@@ -1613,12 +1668,15 @@ async function renderHistory() {
       (participant.joinedDate || ninetyDaysAgo) > ninetyDaysAgo
         ? participant.joinedDate || ninetyDaysAgo
         : ninetyDaysAgo;
+    const participantToday =
+      participant.timezoneOffset != null
+        ? getTodayStrForOffset(participant.timezoneOffset)
+        : state.todayStr;
     const allDays = (() => {
       const days = [];
       const d = new Date(windowStart + "T00:00:00");
-      const today = new Date();
-      today.setHours(0, 0, 0, 0);
-      while (d <= today) {
+      const participantTodayDate = new Date(participantToday + "T00:00:00");
+      while (d <= participantTodayDate) {
         days.push(
           `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`,
         );
@@ -1631,8 +1689,8 @@ async function renderHistory() {
     const totalFines = calcFinesForPersonAllTime(participant.name);
     const streak = calcStreak(participant.name);
     const bestStreak = calcBestStreak(participant.name);
-    const pastDays = allDays.filter((d) => d < state.todayStr);
-    const todayDone = isWorkoutComplete(participant.name, state.todayStr);
+    const pastDays = allDays.filter((d) => d < participantToday);
+    const todayDone = isWorkoutComplete(participant.name, participantToday);
     const completedDays =
       pastDays.filter((d) => isWorkoutComplete(participant.name, d)).length +
       (todayDone ? 1 : 0);
@@ -1664,7 +1722,10 @@ async function renderHistory() {
     let monthsHTML = "";
     for (const monthKey of monthKeys) {
       const monthDays = monthMap[monthKey].slice().reverse(); // newest first within month
-      const monthFine = calcFinesForPerson(participant.name, monthDays);
+      const monthFine = calcFinesForPerson(
+        participant.name,
+        monthDays.filter((d) => d !== participantToday),
+      );
       const monthDate = new Date(monthKey + "-01T00:00:00");
       const monthLabel = monthDate.toLocaleDateString("en-US", {
         month: "long",
@@ -1673,7 +1734,7 @@ async function renderHistory() {
 
       let daysHTML = "";
       for (const date of monthDays) {
-        const isToday = date === state.todayStr;
+        const isToday = date === participantToday;
         const isSick = isSickDay(participant.name, date);
         const allComplete = isWorkoutComplete(participant.name, date);
         const done = getCompletedExercisesForDay(participant.name, date);
