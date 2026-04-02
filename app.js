@@ -1188,6 +1188,9 @@ function renderTodayView() {
     summary.innerHTML = `<div class="gsm-label">Group Today</div>${rows}`;
     container.appendChild(summary);
   }
+
+  // Workout times chart
+  container.insertAdjacentHTML("beforeend", renderWorkoutTimesChart());
 }
 
 async function handleExerciseCheck(e) {
@@ -1397,6 +1400,185 @@ function renderLeaderboard() {
     `;
     container.appendChild(item);
   });
+}
+
+// ============================================================
+// RENDER: WORKOUT TIMES CHART
+// ============================================================
+
+function getWorkoutTimesChartData() {
+  // Build candidate 30-day window
+  const allDays = [];
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  for (let i = 29; i >= 0; i--) {
+    const d = new Date(today);
+    d.setDate(today.getDate() - i);
+    allDays.push(
+      `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`,
+    );
+  }
+
+  // Trim leading days where no participant has a completed workout
+  let firstDataIdx = allDays.findIndex((dateStr) =>
+    state.participants.some((p) => isWorkoutComplete(p.name, dateStr)),
+  );
+  const days = firstDataIdx <= 0 ? allDays : allDays.slice(firstDataIdx);
+
+  return {
+    days,
+    series: state.participants.map((p) => {
+      const color = getParticipantColor(p);
+      const points = days.map((dateStr) => {
+        if (!isWorkoutComplete(p.name, dateStr)) return null;
+        const completions = state.completions.filter(
+          (c) =>
+            c.date === dateStr &&
+            c.person === p.name &&
+            c.completed &&
+            c.completedAt,
+        );
+        if (!completions.length) return null;
+        const timestamps = completions
+          .map((c) => new Date(c.completedAt).getTime())
+          .filter((t) => !isNaN(t));
+        if (!timestamps.length) return null;
+        const latestMs = Math.max(...timestamps);
+        const latestC = completions.find(
+          (c) => new Date(c.completedAt).getTime() === latestMs,
+        );
+        const m = latestC.completedAt.match(/T(\d{2}):(\d{2})/);
+        if (!m) return null;
+        return parseInt(m[1], 10) * 60 + parseInt(m[2], 10);
+      });
+      return { name: p.name, color, points };
+    }),
+  };
+}
+
+function renderWorkoutTimesChart() {
+  const { days, series } = getWorkoutTimesChartData();
+  const hasAnyData = series.some((s) => s.points.some((p) => p !== null));
+
+  const W = 600,
+    H = 230;
+  const PL = 42,
+    PR = 12,
+    PT = 12,
+    PB = 32;
+  const CW = W - PL - PR,
+    CH = H - PT - PB;
+
+  // Adaptive Y range: zoom to actual data with padding, min 3h span
+  const allMins = series.flatMap((s) => s.points.filter((p) => p !== null));
+  let YMIN, YMAX;
+  if (allMins.length) {
+    YMIN = Math.max(0, Math.floor((Math.min(...allMins) - 45) / 60) * 60);
+    YMAX = Math.min(1440, Math.ceil((Math.max(...allMins) + 45) / 60) * 60);
+    if (YMAX - YMIN < 180) {
+      const mid = (YMIN + YMAX) / 2;
+      YMIN = Math.max(0, Math.round(mid / 60) * 60 - 90);
+      YMAX = YMIN + 180;
+    }
+  } else {
+    YMIN = 300;
+    YMAX = 1380;
+  }
+
+  const xFor = (i) => PL + (days.length > 1 ? (i / (days.length - 1)) * CW : CW / 2);
+  const yFor = (mins) =>
+    PT + (1 - (Math.min(Math.max(mins, YMIN), YMAX) - YMIN) / (YMAX - YMIN)) * CH;
+
+  // Y grid + labels — only hours within the adaptive range, every 2h
+  let grid = "",
+    yLabels = "";
+  for (let h = Math.ceil(YMIN / 60); h <= Math.floor(YMAX / 60); h += 2) {
+    const y = yFor(h * 60);
+    grid += `<line x1="${PL}" y1="${y}" x2="${W - PR}" y2="${y}" stroke="rgba(255,255,255,0.07)" stroke-width="1"/>`;
+    const lbl =
+      h === 12 ? "12p" : h === 0 ? "12a" : h < 12 ? `${h}a` : `${h - 12}p`;
+    yLabels += `<text x="${PL - 5}" y="${y + 4}" text-anchor="end" fill="#5a5a80" font-size="10">${lbl}</text>`;
+  }
+
+  // X labels — every 7 days + last day, skip any that would collide (min 50px gap)
+  const MIN_X_GAP = 50;
+  let xLabels = "";
+  let lastLabelX = -Infinity;
+  const xCandidates = [];
+  for (let i = 0; i < days.length; i += 7) xCandidates.push(i);
+  if (xCandidates[xCandidates.length - 1] !== days.length - 1)
+    xCandidates.push(days.length - 1);
+  for (const i of xCandidates) {
+    const x = xFor(i);
+    if (x - lastLabelX >= MIN_X_GAP) {
+      const d = new Date(days[i] + "T00:00:00");
+      const lbl = d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+      xLabels += `<text x="${x}" y="${H - PB + 14}" text-anchor="middle" fill="#5a5a80" font-size="10">${lbl}</text>`;
+      lastLabelX = x;
+    }
+  }
+
+  // Series
+  let seriesSVG = "";
+  if (hasAnyData) {
+    for (const s of series) {
+      // Build runs of consecutive non-null points for polylines
+      let run = [];
+      const flush = () => {
+        if (run.length >= 2) {
+          const pts = run.map(({ i, m }) => `${xFor(i)},${yFor(m)}`).join(" ");
+          seriesSVG += `<polyline points="${pts}" fill="none" stroke="${s.color}" stroke-width="2" stroke-opacity="0.65" stroke-linejoin="round" stroke-linecap="round"/>`;
+        }
+        run = [];
+      };
+      for (let i = 0; i < s.points.length; i++) {
+        if (s.points[i] !== null) run.push({ i, m: s.points[i] });
+        else flush();
+      }
+      flush();
+
+      // Dots
+      for (let i = 0; i < s.points.length; i++) {
+        const mins = s.points[i];
+        if (mins === null) continue;
+        const hh = Math.floor(mins / 60);
+        const mm = String(mins % 60).padStart(2, "0");
+        const ampm = hh >= 12 ? "PM" : "AM";
+        const h12 = hh % 12 || 12;
+        seriesSVG += `<circle cx="${xFor(i)}" cy="${yFor(mins)}" r="3.5" fill="${s.color}" stroke="#0a0a0f" stroke-width="1.5"><title>${s.name}: ${h12}:${mm} ${ampm}</title></circle>`;
+      }
+    }
+  }
+
+  const legendItems = series
+    .map(
+      (s) =>
+        `<span class="chart-legend-item"><svg width="10" height="10" viewBox="0 0 10 10"><circle cx="5" cy="5" r="4" fill="${s.color}"/></svg>${s.name}</span>`,
+    )
+    .join("");
+
+  const emptyMsg = hasAnyData
+    ? ""
+    : `<text x="${W / 2}" y="${H / 2}" text-anchor="middle" fill="#5a5a80" font-size="12">No workout data yet</text>`;
+
+  return `
+    <div class="workout-times-chart">
+      <div class="workout-times-chart-header">
+        <span class="workout-times-chart-title">Workout Times</span>
+        <span class="workout-times-chart-sub">last ${days.length} day${days.length === 1 ? "" : "s"}</span>
+      </div>
+      <svg viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg" style="width:100%;display:block;">
+        ${grid}
+        <line x1="${PL}" y1="${PT}" x2="${PL}" y2="${H - PB}" stroke="rgba(255,255,255,0.12)" stroke-width="1"/>
+        <line x1="${PL}" y1="${H - PB}" x2="${W - PR}" y2="${H - PB}" stroke="rgba(255,255,255,0.12)" stroke-width="1"/>
+        ${yLabels}
+        ${xLabels}
+        ${seriesSVG}
+        ${emptyMsg}
+      </svg>
+      <div class="chart-legend">${legendItems}</div>
+    </div>
+  `;
 }
 
 // ============================================================

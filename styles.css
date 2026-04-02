@@ -1515,6 +1515,52 @@ body.group-glory-day #history-container {
 }
 
 /* ============================================
+   WORKOUT TIMES CHART
+   ============================================ */
+.workout-times-chart {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 16px 16px 12px;
+  margin-bottom: 16px;
+}
+
+.workout-times-chart-header {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.workout-times-chart-title {
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: var(--text-primary);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.workout-times-chart-sub {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+}
+
+.chart-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-top: 10px;
+}
+
+.chart-legend-item {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+}
+
+/* ============================================
    ADMIN VIEW
    ============================================ */
 .admin-section {
