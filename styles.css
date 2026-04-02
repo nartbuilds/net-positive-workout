@@ -733,11 +733,13 @@ body.group-glory-day #history-container {
   width: 72px;
   height: 72px;
   object-fit: contain;
-  pointer-events: none;
+  cursor: pointer;
   z-index: 10;
   display: none;
   animation: alanFloat 3s ease-in-out infinite;
   filter: drop-shadow(0 2px 12px rgba(255, 107, 107, 0.5));
+  user-select: none;
+  -webkit-user-select: none;
 }
 
 @keyframes alanFloat {
@@ -750,6 +752,42 @@ body.group-glory-day #history-container {
   100% {
     transform: translateY(0px) scale(1);
   }
+}
+
+@keyframes alanWiggle {
+  0%   { transform: rotate(0deg) scale(1); }
+  15%  { transform: rotate(-18deg) scale(1.15); }
+  30%  { transform: rotate(16deg) scale(1.2); }
+  45%  { transform: rotate(-12deg) scale(1.15); }
+  60%  { transform: rotate(10deg) scale(1.1); }
+  75%  { transform: rotate(-6deg) scale(1.05); }
+  100% { transform: rotate(0deg) scale(1); }
+}
+
+#glory-alan-float.wiggling {
+  animation: alanWiggle 0.5s ease-in-out;
+}
+
+.alan-quip {
+  position: fixed;
+  background: #1e1e2e;
+  border: 1px solid rgba(255,255,255,0.15);
+  color: #fff;
+  font-size: 0.8rem;
+  font-weight: 600;
+  padding: 6px 12px;
+  border-radius: 16px;
+  white-space: nowrap;
+  z-index: 11;
+  pointer-events: none;
+  animation: alanQuipPop 2s ease-out forwards;
+}
+
+@keyframes alanQuipPop {
+  0%   { opacity: 0; transform: translateY(0px) scale(0.8); }
+  15%  { opacity: 1; transform: translateY(-8px) scale(1); }
+  70%  { opacity: 1; transform: translateY(-16px) scale(1); }
+  100% { opacity: 0; transform: translateY(-28px) scale(0.95); }
 }
 
 .glory-today-alan {

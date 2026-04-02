@@ -1122,7 +1122,7 @@ function renderTodayView() {
           <div class="card-name">${participant.name}</div>
           <div class="card-status">${statusText}</div>
           ${streak > 0 ? `<div class="streak-pill">🔥 ${streak}-day streak</div>` : ""}
-          ${isMe ? `<button class="sick-day-btn${sickToday ? " active" : ""}" data-person="${participant.name}">${sickToday ? "🤒 Sick Day" : "🤒 Sick?"}</button>` : ""}
+          ${isMe ? `<button class="sick-day-btn${sickToday ? " active" : ""}" data-person="${participant.name}"${allDone ? " disabled" : ""}>${sickToday ? "🤒 Sick Day" : "🤒 Sick?"}</button>` : ""}
         </div>
       </div>
       <div class="exercise-list">${exercisesHTML}</div>
@@ -1491,9 +1491,11 @@ function renderWorkoutTimesChart() {
     YMAX = 1380;
   }
 
-  const xFor = (i) => PL + (days.length > 1 ? (i / (days.length - 1)) * CW : CW / 2);
+  const xFor = (i) =>
+    PL + (days.length > 1 ? (i / (days.length - 1)) * CW : CW / 2);
   const yFor = (mins) =>
-    PT + (1 - (Math.min(Math.max(mins, YMIN), YMAX) - YMIN) / (YMAX - YMIN)) * CH;
+    PT +
+    (1 - (Math.min(Math.max(mins, YMIN), YMAX) - YMIN) / (YMAX - YMIN)) * CH;
 
   // Y grid + labels — only hours within the adaptive range, every 2h
   let grid = "",
@@ -1518,7 +1520,10 @@ function renderWorkoutTimesChart() {
     const x = xFor(i);
     if (x - lastLabelX >= MIN_X_GAP) {
       const d = new Date(days[i] + "T00:00:00");
-      const lbl = d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+      const lbl = d.toLocaleDateString("en-US", {
+        month: "short",
+        day: "numeric",
+      });
       xLabels += `<text x="${x}" y="${H - PB + 14}" text-anchor="middle" fill="#5a5a80" font-size="10">${lbl}</text>`;
       lastLabelX = x;
     }
@@ -1952,7 +1957,8 @@ function showView(viewId) {
   if (navEl) navEl.classList.add("active");
   const floatAlan = document.getElementById("glory-alan-float");
   if (floatAlan) {
-    floatAlan.style.display = (viewId === "leaderboard" || viewId === "history") ? "block" : "none";
+    floatAlan.style.display =
+      viewId === "leaderboard" || viewId === "history" ? "block" : "none";
   }
 
   switch (viewId) {
@@ -2048,17 +2054,132 @@ function applyGloryAmbient() {
   if (todayHeader && !todayHeader.querySelector(".glory-today-alan")) {
     const img = document.createElement("img");
     img.className = "glory-today-alan";
-    img.src = "/alan_heart.png";
+    img.src = "/alan/alan_cheer.png";
     img.alt = "";
     todayHeader.appendChild(img);
   }
   if (!document.getElementById("glory-alan-float")) {
     const img = document.createElement("img");
     img.id = "glory-alan-float";
-    img.src = "/alan_heart.png";
+    img.src = "/alan/alan_cheer.png";
     img.alt = "";
+    img.dataset.tapCount = "0";
+    img.addEventListener("click", handleAlanTap);
     document.body.appendChild(img);
   }
+}
+
+const ALAN_QUIPS = [
+  "Raw dog it",
+  "🍑",
+  "I didn't say I didn't want a pear shaped body",
+  "A charmed life",
+  "Choose your hard",
+  "Pica?",
+  "I'm doing something back here",
+  "Ready for a smash fest",
+  "To be sure, to be sure",
+  "I'm a fat person in a skinny person's body",
+];
+
+const ALAN_SCARED_QUIPS = [
+  "Please no more...",
+  "Someone help",
+  "Legs are a bit sore hey",
+  "🌚",
+];
+
+const ALAN_TIRED_QUIPS = ["I bonked..", "...", "🌚"];
+
+const ALAN_EXPRESSIONS = [
+  "/alan/alan_heart.png",
+  "/alan/alan_neutral.png",
+  "/alan/alan_cheer.png",
+];
+
+const ALAN_SCARED_THRESHOLD = 15;
+const ALAN_TIRED_THRESHOLD = 20;
+const ALAN_RESET_MS = 30000;
+
+function setAlanExpression(src) {
+  const float = document.getElementById("glory-alan-float");
+  if (float) float.src = src;
+  const todayAlan = document.querySelector(".glory-today-alan");
+  if (todayAlan) todayAlan.src = src;
+}
+
+function handleAlanTap(e) {
+  const alan = e.currentTarget;
+  if (!alan) return;
+
+  const tapCount = parseInt(alan.dataset.tapCount ?? "0") + 1;
+  alan.dataset.tapCount = tapCount;
+
+  // Reset to neutral after 30s of no tapping
+  clearTimeout(alan._resetTimer);
+  alan._resetTimer = setTimeout(() => {
+    alan.dataset.tapCount = "0";
+    setAlanExpression("/alan/alan_neutral.png");
+  }, ALAN_RESET_MS);
+
+  // Update expression
+  if (tapCount >= ALAN_TIRED_THRESHOLD) {
+    setAlanExpression("/alan/alan_tired.png");
+  } else if (tapCount >= ALAN_SCARED_THRESHOLD) {
+    setAlanExpression("/alan/alan_scared.png");
+  } else {
+    setAlanExpression(
+      ALAN_EXPRESSIONS[(tapCount - 1) % ALAN_EXPRESSIONS.length],
+    );
+  }
+
+  // Wiggle
+  alan.classList.remove("wiggling");
+  void alan.offsetWidth;
+  alan.classList.add("wiggling");
+  alan.addEventListener(
+    "animationend",
+    () => alan.classList.remove("wiggling"),
+    { once: true },
+  );
+
+  // Sound
+  playAlanBoing();
+
+  // Quip bubble
+  const pool =
+    tapCount >= ALAN_TIRED_THRESHOLD
+      ? ALAN_TIRED_QUIPS
+      : tapCount >= ALAN_SCARED_THRESHOLD
+        ? ALAN_SCARED_QUIPS
+        : ALAN_QUIPS;
+  const quip = pool[Math.floor(Math.random() * pool.length)];
+  const bubble = document.createElement("div");
+  bubble.className = "alan-quip";
+  bubble.textContent = quip;
+  const rect = alan.getBoundingClientRect();
+  bubble.style.bottom = window.innerHeight - rect.top + 8 + "px";
+  bubble.style.right = window.innerWidth - rect.right + 8 + "px";
+  document.body.appendChild(bubble);
+  bubble.addEventListener("animationend", () => bubble.remove());
+}
+
+function playAlanBoing() {
+  try {
+    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    osc.type = "sine";
+    osc.frequency.setValueAtTime(300, ctx.currentTime);
+    osc.frequency.exponentialRampToValueAtTime(900, ctx.currentTime + 0.08);
+    osc.frequency.exponentialRampToValueAtTime(500, ctx.currentTime + 0.25);
+    gain.gain.setValueAtTime(0.22, ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.3);
+    osc.start(ctx.currentTime);
+    osc.stop(ctx.currentTime + 0.3);
+  } catch {}
 }
 
 function triggerGroupGlory() {
@@ -2223,7 +2344,6 @@ function launchFireworks() {
     canvas.remove();
   }, 6000);
 }
-
 
 function playExerciseTick() {
   try {
@@ -2572,6 +2692,13 @@ function bindEvents() {
     .getElementById("btn-admin-notifs")
     .addEventListener("click", requestNotificationPermission);
 
+  document.getElementById("btn-unlock-sound").addEventListener("click", () => {
+    playAlanBoing();
+    const btn = document.getElementById("btn-unlock-sound");
+    btn.textContent = "✅ Sounds Enabled";
+    btn.disabled = true;
+  });
+
   document
     .getElementById("btn-seed-data")
     .addEventListener("click", () => seedTestData(60));
@@ -2581,7 +2708,10 @@ function bindEvents() {
     .addEventListener("click", () => {
       localStorage.removeItem("np_group_glory");
       state.groupCelebratedToday = false;
-      showToast("Squad glory reset — will trigger again next completion", "success");
+      showToast(
+        "Squad glory reset — will trigger again next completion",
+        "success",
+      );
     });
 
   document

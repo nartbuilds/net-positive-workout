@@ -1,5 +1,5 @@
-const CACHE = "netpve-v25";
-const SHELL = ["/", "/index.html", "/styles.css", "/app.js", "/manifest.json", "/alan_heart.png"];
+const CACHE = "netpve-v28";
+const SHELL = ["/", "/index.html", "/styles.css", "/app.js", "/manifest.json", "/alan/alan_neutral.png", "/alan/alan_cheer.png", "/alan/alan_heart.png", "/alan/alan_scared.png", "/alan/alan_tired.png"];
 
 // Install: cache app shell, take over immediately
 self.addEventListener("install", (event) => {
