@@ -463,19 +463,33 @@ async function toggleSickDay(name, date) {
 
 function getWorkoutCompletionTime(personName, date) {
   if (!isWorkoutComplete(personName, date)) return null;
-  const timestamps = state.completions
-    .filter(
-      (c) =>
-        c.date === date &&
-        c.person === personName &&
-        c.completed &&
-        c.completedAt,
-    )
+  const completions = state.completions.filter(
+    (c) =>
+      c.date === date &&
+      c.person === personName &&
+      c.completed &&
+      c.completedAt,
+  );
+  if (!completions.length) return null;
+  const timestamps = completions
     .map((c) => new Date(c.completedAt).getTime())
     .filter((t) => !isNaN(t));
   if (!timestamps.length) return null;
-  const latest = new Date(Math.max(...timestamps));
-  return latest.toLocaleTimeString("en-US", {
+  const latestMs = Math.max(...timestamps);
+  const latestCompletion = completions.find(
+    (c) => new Date(c.completedAt).getTime() === latestMs,
+  );
+  // completedAt is stored as local ISO string (e.g. "2026-04-02T14:30:00-07:00")
+  // Extract the time component directly — it's already the person's local time
+  const m = latestCompletion.completedAt.match(/T(\d{2}):(\d{2})/);
+  if (m) {
+    let h = parseInt(m[1], 10);
+    const min = m[2];
+    const ampm = h >= 12 ? "PM" : "AM";
+    h = h % 12 || 12;
+    return `${h}:${min} ${ampm}`;
+  }
+  return new Date(latestMs).toLocaleTimeString("en-US", {
     hour: "numeric",
     minute: "2-digit",
     hour12: true,
