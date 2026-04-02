@@ -2070,10 +2070,8 @@ function applyGloryAmbient() {
 }
 
 const ALAN_QUIPS = [
-  "Raw dog it",
+  "Just raw dog it",
   "🍑",
-  "I didn't say I didn't want a pear shaped body",
-  "A charmed life",
   "Choose your hard",
   "Pica?",
   "I'm doing something back here",
@@ -2084,7 +2082,6 @@ const ALAN_QUIPS = [
 
 const ALAN_SCARED_QUIPS = [
   "Please no more...",
-  "Someone help",
   "Legs are a bit sore hey",
   "🌚",
 ];
@@ -2097,8 +2094,8 @@ const ALAN_EXPRESSIONS = [
   "/alan/alan_cheer.png",
 ];
 
-const ALAN_SCARED_THRESHOLD = 15;
-const ALAN_TIRED_THRESHOLD = 20;
+const ALAN_SCARED_THRESHOLD = 10;
+const ALAN_TIRED_THRESHOLD = 12;
 const ALAN_RESET_MS = 30000;
 
 function setAlanExpression(src) {
