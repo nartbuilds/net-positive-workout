@@ -1045,6 +1045,10 @@ function showAuthStep(step) {
 }
 
 // ============================================================
+// REACTIONS
+// ============================================================
+
+// ============================================================
 // RENDER: TODAY VIEW
 // ============================================================
 
@@ -1211,6 +1215,8 @@ async function handleExerciseCheck(e) {
 
   const checkedCount = [...cardEl.querySelectorAll(".exercise-check.checked")]
     .length;
+
+  if (nowChecked) playExerciseTick();
 
   if (allChecked && !cardEl.classList.contains("completed-all")) {
     cardEl.classList.add("completed-all", "just-completed");
@@ -2216,6 +2222,24 @@ function launchFireworks() {
     cancelAnimationFrame(rafId);
     canvas.remove();
   }, 6000);
+}
+
+
+function playExerciseTick() {
+  try {
+    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    osc.type = "sine";
+    osc.frequency.setValueAtTime(600, ctx.currentTime);
+    osc.frequency.exponentialRampToValueAtTime(900, ctx.currentTime + 0.06);
+    gain.gain.setValueAtTime(0.18, ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.12);
+    osc.start(ctx.currentTime);
+    osc.stop(ctx.currentTime + 0.12);
+  } catch {}
 }
 
 function playVictoryFanfare() {
