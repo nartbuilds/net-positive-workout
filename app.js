@@ -1178,7 +1178,8 @@ function renderTodayView() {
         <div class="exercise-counter">
           <button class="counter-btn counter-dec" data-person="${participant.name}" data-exercise="${ex.id}" data-direction="dec" ${counterDisabled}>−</button>
           <span class="counter-display" data-person="${participant.name}" data-exercise="${ex.id}" data-target="${ex.targetCount}" data-unit="${ex.unit}" style="cursor:pointer" title="Tap to set exact count">${countNow} / ${ex.targetCount} ${ex.unit}</span>
-          <button class="counter-btn counter-inc" data-person="${participant.name}" data-exercise="${ex.id}" data-direction="inc" ${counterDisabled} title="Long-press to change increment">+${inc}</button>
+          <button class="counter-btn counter-inc" data-person="${participant.name}" data-exercise="${ex.id}" data-direction="inc" ${counterDisabled}>+${inc}</button>
+          <button class="counter-settings-btn" data-exercise="${ex.id}" ${counterDisabled} title="Change increment">⚙</button>
         </div>`
         : "";
       return `
@@ -1223,31 +1224,20 @@ function renderTodayView() {
           const inc = getIncrement(exercise);
           handleCountChange(person, exercise, direction === "inc" ? inc : -inc);
           if (direction === "inc") spawnMatchaParticles(btn);
-          if (
-            direction === "inc" &&
-            !localStorage.getItem("np_counter_hint_shown")
-          ) {
-            _counterHintActive = true;
-            const counterEl = btn.closest(".exercise-counter");
-            if (counterEl && !counterEl.querySelector(".counter-hint")) {
-              counterEl.appendChild(makeCounterHint());
-            }
-          }
         });
-        if (btn.dataset.direction === "inc") {
-          addLongPress(btn, () => editIncrement(btn));
-        }
+      });
+      card.querySelectorAll(".counter-settings-btn").forEach((settingsBtn) => {
+        settingsBtn.addEventListener("click", () => {
+          const exerciseId = settingsBtn.dataset.exercise;
+          const incBtn = settingsBtn
+            .closest(".exercise-counter")
+            ?.querySelector(`.counter-inc[data-exercise="${exerciseId}"]`);
+          if (incBtn) editIncrement(incBtn);
+        });
       });
       card.querySelectorAll(".counter-display").forEach((span) => {
         span.addEventListener("click", () => editCountInline(span));
       });
-      if (
-        _counterHintActive &&
-        !localStorage.getItem("np_counter_hint_shown")
-      ) {
-        const firstCounter = card.querySelector(".exercise-counter");
-        if (firstCounter) firstCounter.appendChild(makeCounterHint());
-      }
       const sickBtn = card.querySelector(".sick-day-btn");
       if (sickBtn) {
         sickBtn.addEventListener("click", () =>
@@ -1499,12 +1489,18 @@ function showLianeConfused(
   document.body.appendChild(el);
 
   const rect = anchorEl.getBoundingClientRect();
+  const posLeft = ghost
+    ? rect.left + rect.width / 2 - imgSize / 2
+    : rect.right + 18;
+  const posTop = ghost
+    ? rect.top - imgSize / 2 + 9
+    : rect.top + rect.height / 2 - imgSize / 2;
   el.style.cssText = `
     position: fixed;
     width: ${imgSize}px;
     height: ${imgSize}px;
-    left: ${rect.right + 6}px;
-    top: ${rect.top + rect.height / 2 - imgSize / 2}px;
+    left: ${posLeft}px;
+    top: ${posTop}px;
     pointer-events: none;
     z-index: 9999;
     animation: ${
@@ -1550,11 +1546,12 @@ function editIncrement(btn) {
   input.value = currentInc;
   input.className = "counter-edit-input";
   input.style.width = btnWidth + "px";
+  btn.style.padding = "0";
   btn.replaceChildren(input);
   input.focus();
   input.select();
 
-  const liane = showLianeConfused(btn, 0, 70);
+  const liane = showLianeConfused(btn, 0, 80);
 
   const commit = () => {
     liane.remove();
@@ -1564,11 +1561,13 @@ function editIncrement(btn) {
     );
     setIncrement(exerciseId, val);
     delete btn.dataset.editing;
+    btn.style.padding = "";
     btn.textContent = `+${val}`;
   };
   const cancel = () => {
     liane.remove();
     delete btn.dataset.editing;
+    btn.style.padding = "";
     btn.textContent = `+${currentInc}`;
   };
   input.addEventListener("blur", commit);
@@ -1691,25 +1690,7 @@ function spawnMatchaParticles(btn) {
   }
 }
 
-function makeCounterHint() {
-  const hint = document.createElement("div");
-  hint.className = "counter-hint";
-  hint.innerHTML = `
-    <div class="counter-hint-body">
-      <span>Tap the middle to set exact reps</span>
-      <span>Hold +N to change the increment</span>
-    </div>
-    <button class="counter-hint-dismiss">Got it</button>`;
-  hint.querySelector(".counter-hint-dismiss").addEventListener("click", () => {
-    localStorage.setItem("np_counter_hint_shown", "1");
-    _counterHintActive = false;
-    hint.remove();
-  });
-  return hint;
-}
-
 const _countSaveTimers = new Map();
-let _counterHintActive = false;
 
 function handleCountChange(personName, exerciseId, delta) {
   const ex = CONFIG.EXERCISES.find((e) => e.id === exerciseId);
@@ -1726,7 +1707,7 @@ function handleCountChange(personName, exerciseId, delta) {
       const decBtn = cardEl?.querySelector(
         `.counter-btn[data-exercise="${exerciseId}"][data-direction="dec"]`,
       );
-      if (decBtn) showLianeConfused(decBtn, 2200, 68, true);
+      if (decBtn) showLianeConfused(decBtn, 2200, 50, true);
     }
     return;
   }

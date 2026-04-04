@@ -1041,6 +1041,28 @@ body.group-glory-day #history-container {
   background: rgba(0, 217, 163, 0.25);
 }
 
+.counter-settings-btn {
+  background: none;
+  border: none;
+  color: var(--text-secondary);
+  font-size: 1rem;
+  width: 32px;
+  height: 32px;
+  margin-left: -10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  transition: color 0.15s;
+  flex-shrink: 0;
+}
+
+.counter-settings-btn:not(:disabled):hover,
+.counter-settings-btn:not(:disabled):active {
+  color: var(--text-primary);
+}
+
 .counter-btn:disabled {
   opacity: 0.4;
   cursor: not-allowed;
@@ -1077,42 +1099,6 @@ body.group-glory-day #history-container {
   -webkit-appearance: none;
 }
 
-.counter-hint {
-  position: absolute;
-  top: calc(100% + 6px);
-  left: 0;
-  right: 0;
-  background: var(--bg-card-hover);
-  border: 1px solid var(--border-bright);
-  border-radius: var(--radius-xs);
-  padding: 10px 12px;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 10px;
-  z-index: 10;
-}
-
-.counter-hint-body {
-  display: flex;
-  flex-direction: column;
-  gap: 3px;
-  font-size: 0.7rem;
-  color: var(--text-secondary);
-}
-
-.counter-hint-dismiss {
-  background: var(--border-bright);
-  border: none;
-  border-radius: 4px;
-  color: var(--text-primary);
-  font-size: 0.7rem;
-  font-weight: 700;
-  padding: 4px 10px;
-  cursor: pointer;
-  flex-shrink: 0;
-  -webkit-tap-highlight-color: transparent;
-}
 
 /* Liane confused popup */
 @keyframes liane-pop-in {
