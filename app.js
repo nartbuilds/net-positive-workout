@@ -34,9 +34,33 @@ const CONFIG = {
 
   // Exercises each person must complete daily
   EXERCISES: [
-    { id: "squats", name: "100 Squats", emoji: "🦵", target: "100 reps" },
-    { id: "pushups", name: "50 Push-ups", emoji: "💪", target: "50 reps" },
-    { id: "plank", name: "5 Min Plank", emoji: "🧘", target: "5 minutes" },
+    {
+      id: "squats",
+      name: "100 Squats",
+      emoji: "🦵",
+      target: "100 reps",
+      targetCount: 100,
+      unit: "reps",
+      increment: 100,
+    },
+    {
+      id: "pushups",
+      name: "50 Push-ups",
+      emoji: "💪",
+      target: "50 reps",
+      targetCount: 50,
+      unit: "reps",
+      increment: 50,
+    },
+    {
+      id: "plank",
+      name: "5 Min Plank",
+      emoji: "🧘",
+      target: "5 minutes",
+      targetCount: 5,
+      unit: "min",
+      increment: 5,
+    },
   ],
 
   // Fine amounts
@@ -1128,17 +1152,40 @@ function renderTodayView() {
 
     const exercisesHTML = CONFIG.EXERCISES.map((ex) => {
       const done = completedToday.includes(ex.id);
+      let countNow = 0;
+      if (isMe) {
+        if (done) {
+          countNow = ex.targetCount;
+          // Sync localStorage so - button reads the right value
+          if (
+            getCount(participant.name, ex.id, state.todayStr) < ex.targetCount
+          ) {
+            setCountLocal(
+              participant.name,
+              ex.id,
+              state.todayStr,
+              ex.targetCount,
+            );
+          }
+        } else {
+          countNow = getCount(participant.name, ex.id, state.todayStr);
+        }
+      }
+      const counterDisabled = !isMe || sickToday ? "disabled" : "";
+      const inc = getIncrement(ex.id);
+      const counterHTML = isMe
+        ? `
+        <div class="exercise-counter">
+          <button class="counter-btn counter-dec" data-person="${participant.name}" data-exercise="${ex.id}" data-direction="dec" ${counterDisabled}>−</button>
+          <span class="counter-display" data-person="${participant.name}" data-exercise="${ex.id}" data-target="${ex.targetCount}" data-unit="${ex.unit}" style="cursor:pointer" title="Tap to set exact count">${countNow} / ${ex.targetCount} ${ex.unit}</span>
+          <button class="counter-btn counter-inc" data-person="${participant.name}" data-exercise="${ex.id}" data-direction="inc" ${counterDisabled} title="Long-press to change increment">+${inc}</button>
+        </div>`
+        : "";
       return `
-        <div class="exercise-item">
-          <button class="exercise-check${done ? " checked" : ""}"
-                  data-person="${participant.name}" data-exercise="${ex.id}"
-                  ${!isMe || sickToday ? "disabled" : ""}
-                  aria-label="${done ? "Uncheck" : "Check"} ${ex.name}"
-                  title="${isMe ? (sickToday ? "Mark yourself as not sick to log exercises" : "") : "Log in as " + participant.name + " to check this"}">
-          </button>
+        <div class="exercise-item${done ? " exercise-done" : ""}">
           <div class="exercise-info">
             <div class="exercise-name">${ex.name}</div>
-            <div class="exercise-target">${ex.target}</div>
+            ${counterHTML || `<div class="exercise-target">${ex.target}</div>`}
           </div>
           <span class="exercise-emoji">${ex.emoji}</span>
         </div>
@@ -1169,9 +1216,38 @@ function renderTodayView() {
     `;
 
     if (isMe) {
-      card.querySelectorAll(".exercise-check").forEach((btn) => {
-        btn.addEventListener("click", handleExerciseCheck);
+      card.querySelectorAll(".counter-btn").forEach((btn) => {
+        btn.addEventListener("click", (e) => {
+          if (btn.dataset.editing) return;
+          const { person, exercise, direction } = e.currentTarget.dataset;
+          const inc = getIncrement(exercise);
+          handleCountChange(person, exercise, direction === "inc" ? inc : -inc);
+          if (direction === "inc") spawnMatchaParticles(btn);
+          if (
+            direction === "inc" &&
+            !localStorage.getItem("np_counter_hint_shown")
+          ) {
+            _counterHintActive = true;
+            const counterEl = btn.closest(".exercise-counter");
+            if (counterEl && !counterEl.querySelector(".counter-hint")) {
+              counterEl.appendChild(makeCounterHint());
+            }
+          }
+        });
+        if (btn.dataset.direction === "inc") {
+          addLongPress(btn, () => editIncrement(btn));
+        }
       });
+      card.querySelectorAll(".counter-display").forEach((span) => {
+        span.addEventListener("click", () => editCountInline(span));
+      });
+      if (
+        _counterHintActive &&
+        !localStorage.getItem("np_counter_hint_shown")
+      ) {
+        const firstCounter = card.querySelector(".exercise-counter");
+        if (firstCounter) firstCounter.appendChild(makeCounterHint());
+      }
       const sickBtn = card.querySelector(".sick-day-btn");
       if (sickBtn) {
         sickBtn.addEventListener("click", () =>
@@ -1186,9 +1262,7 @@ function renderTodayView() {
   // Trigger group glory if all complete (handles onSnapshot updates + app open after completion)
   if (
     state.participants.length > 0 &&
-    state.participants.every((p) =>
-      isWorkoutComplete(p.name, state.todayStr),
-    )
+    state.participants.every((p) => isWorkoutComplete(p.name, state.todayStr))
   ) {
     triggerGroupGlory();
   }
@@ -1279,10 +1353,32 @@ async function handleExerciseCheck(e) {
       `${checkedCount}/${CONFIG.EXERCISES.length} completed`;
   }
 
+  const ex = CONFIG.EXERCISES.find((e) => e.id === exerciseId);
+  const count = nowChecked ? (ex?.targetCount ?? 0) : 0;
+  setCountLocal(personName, exerciseId, state.todayStr, count);
+
+  // Sync counter display with checkbox state
+  const counterDisplay = btn
+    .closest(".exercise-item")
+    ?.querySelector(".counter-display");
+  if (counterDisplay && ex) {
+    counterDisplay.textContent = `${count} / ${ex.targetCount} ${ex.unit}`;
+  }
+
   try {
     await saveCompletion(personName, exerciseId, nowChecked);
   } catch {
     btn.classList.toggle("checked", wasChecked);
+    setCountLocal(
+      personName,
+      exerciseId,
+      state.todayStr,
+      wasChecked ? (ex?.targetCount ?? 0) : 0,
+    );
+    if (counterDisplay && ex) {
+      const revertCount = wasChecked ? (ex?.targetCount ?? 0) : 0;
+      counterDisplay.textContent = `${revertCount} / ${ex.targetCount} ${ex.unit}`;
+    }
     showToast("Failed to save. Try again.", "error");
     return;
   }
@@ -1304,6 +1400,447 @@ async function handleExerciseCheck(e) {
   } else {
     if (streakPill) streakPill.remove();
   }
+}
+
+// ============================================================
+// REP COUNTER
+// ============================================================
+
+function getCount(personName, exerciseId, dateStr) {
+  try {
+    return (
+      parseInt(
+        localStorage.getItem(
+          `np_count_${personName}_${exerciseId}_${dateStr}`,
+        ) || "0",
+      ) || 0
+    );
+  } catch {
+    return 0;
+  }
+}
+
+function setCountLocal(personName, exerciseId, dateStr, count) {
+  try {
+    if (count > 0)
+      localStorage.setItem(
+        `np_count_${personName}_${exerciseId}_${dateStr}`,
+        String(count),
+      );
+    else
+      localStorage.removeItem(
+        `np_count_${personName}_${exerciseId}_${dateStr}`,
+      );
+  } catch {}
+}
+
+function getIncrement(exerciseId) {
+  try {
+    const stored = JSON.parse(localStorage.getItem("np_increments") || "{}");
+    return (
+      stored[exerciseId] ??
+      CONFIG.EXERCISES.find((e) => e.id === exerciseId)?.increment ??
+      1
+    );
+  } catch {
+    return CONFIG.EXERCISES.find((e) => e.id === exerciseId)?.increment ?? 1;
+  }
+}
+
+function setIncrement(exerciseId, value) {
+  try {
+    const stored = JSON.parse(localStorage.getItem("np_increments") || "{}");
+    stored[exerciseId] = value;
+    localStorage.setItem("np_increments", JSON.stringify(stored));
+  } catch {}
+}
+
+function addLongPress(el, callback) {
+  let timer = null;
+  let fired = false;
+  const start = () => {
+    fired = false;
+    timer = setTimeout(() => {
+      fired = true;
+      callback();
+    }, 500);
+  };
+  const cancel = () => {
+    if (timer) clearTimeout(timer);
+    timer = null;
+  };
+  el.addEventListener("touchstart", start, { passive: true });
+  el.addEventListener("touchend", cancel);
+  el.addEventListener("touchmove", cancel);
+  el.addEventListener("mousedown", start);
+  el.addEventListener("mouseup", cancel);
+  el.addEventListener("mouseleave", cancel);
+  el.addEventListener("click", (e) => {
+    if (fired) {
+      e.stopImmediatePropagation();
+      fired = false;
+    }
+  });
+}
+
+function showLianeConfused(
+  anchorEl,
+  duration = 0,
+  imgSize = 48,
+  ghost = false,
+) {
+  const existing = document.getElementById("liane-confused-popup");
+  if (existing) existing.remove();
+
+  const el = document.createElement("div");
+  el.id = "liane-confused-popup";
+  el.innerHTML =
+    '<img src="/liane/liane_confused.png" alt="Liane confused" style="width:100%;height:100%;object-fit:contain;display:block;">';
+  document.body.appendChild(el);
+
+  const rect = anchorEl.getBoundingClientRect();
+  el.style.cssText = `
+    position: fixed;
+    width: ${imgSize}px;
+    height: ${imgSize}px;
+    left: ${rect.right + 6}px;
+    top: ${rect.top + rect.height / 2 - imgSize / 2}px;
+    pointer-events: none;
+    z-index: 9999;
+    animation: ${
+      ghost
+        ? `liane-ghost ${(duration || 2000) / 1000}s ease forwards`
+        : "liane-pop-in 0.25s cubic-bezier(0.34,1.56,0.64,1) forwards"
+    };
+  `;
+
+  if (!ghost) {
+    el.addEventListener(
+      "animationend",
+      () => {
+        el.style.animation = "liane-float-idle 1.4s ease-in-out infinite";
+      },
+      { once: true },
+    );
+
+    if (duration > 0) {
+      setTimeout(() => {
+        el.style.animation = "liane-fade-out 0.6s ease forwards";
+        el.addEventListener("animationend", () => el.remove(), { once: true });
+      }, duration);
+    }
+  } else {
+    el.addEventListener("animationend", () => el.remove(), { once: true });
+  }
+
+  return el;
+}
+
+function editIncrement(btn) {
+  const exerciseId = btn.dataset.exercise;
+  const ex = CONFIG.EXERCISES.find((e) => e.id === exerciseId);
+  const currentInc = getIncrement(exerciseId);
+  btn.dataset.editing = "1";
+
+  const btnWidth = btn.offsetWidth;
+  const input = document.createElement("input");
+  input.type = "number";
+  input.min = 1;
+  input.max = ex?.targetCount ?? 100;
+  input.value = currentInc;
+  input.className = "counter-edit-input";
+  input.style.width = btnWidth + "px";
+  btn.replaceChildren(input);
+  input.focus();
+  input.select();
+
+  const liane = showLianeConfused(btn, 0, 70);
+
+  const commit = () => {
+    liane.remove();
+    const val = Math.max(
+      1,
+      Math.min(ex?.targetCount ?? 100, parseInt(input.value) || 1),
+    );
+    setIncrement(exerciseId, val);
+    delete btn.dataset.editing;
+    btn.textContent = `+${val}`;
+  };
+  const cancel = () => {
+    liane.remove();
+    delete btn.dataset.editing;
+    btn.textContent = `+${currentInc}`;
+  };
+  input.addEventListener("blur", commit);
+  input.addEventListener("keydown", (e) => {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      input.blur();
+    }
+    if (e.key === "Escape") {
+      e.preventDefault();
+      input.removeEventListener("blur", commit);
+      cancel();
+    }
+  });
+  input.addEventListener("click", (e) => e.stopPropagation());
+}
+
+function editCountInline(span) {
+  const { person, exercise, target, unit } = span.dataset;
+  const ex = CONFIG.EXERCISES.find((e) => e.id === exercise);
+  const currentCount = getCount(person, exercise, state.todayStr);
+  const targetCount = Number(target);
+
+  const input = document.createElement("input");
+  input.type = "number";
+  input.min = 0;
+  input.max = targetCount;
+  input.value = currentCount;
+  input.className = "counter-edit-input";
+  input.style.width = span.offsetWidth + "px";
+  span.replaceWith(input);
+  input.focus();
+  input.select();
+
+  const commit = () => {
+    const val = Math.max(0, Math.min(targetCount, parseInt(input.value) || 0));
+    const delta = val - getCount(person, exercise, state.todayStr);
+    const newSpan = document.createElement("span");
+    newSpan.className = "counter-display";
+    newSpan.dataset.person = person;
+    newSpan.dataset.exercise = exercise;
+    newSpan.dataset.target = target;
+    newSpan.dataset.unit = unit;
+    newSpan.style.cursor = "pointer";
+    newSpan.title = "Tap to set exact count";
+    newSpan.textContent = `${val} / ${targetCount} ${unit}`;
+    input.replaceWith(newSpan);
+    newSpan.addEventListener("click", () => editCountInline(newSpan));
+    if (delta !== 0) handleCountChange(person, exercise, delta);
+  };
+  input.addEventListener("blur", commit);
+  input.addEventListener("keydown", (e) => {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      input.blur();
+    }
+    if (e.key === "Escape") {
+      e.preventDefault();
+      input.removeEventListener("blur", commit);
+      const newSpan = document.createElement("span");
+      newSpan.className = "counter-display";
+      newSpan.dataset.person = person;
+      newSpan.dataset.exercise = exercise;
+      newSpan.dataset.target = target;
+      newSpan.dataset.unit = unit;
+      newSpan.style.cursor = "pointer";
+      newSpan.title = "Tap to set exact count";
+      newSpan.textContent = `${currentCount} / ${targetCount} ${unit}`;
+      input.replaceWith(newSpan);
+      newSpan.addEventListener("click", () => editCountInline(newSpan));
+    }
+  });
+}
+
+function spawnMatchaParticles(btn) {
+  const rect = btn.getBoundingClientRect();
+  const cx = rect.left + rect.width / 2;
+  const cy = rect.top + rect.height / 2;
+  const COLORS = [
+    "#4a7c59",
+    "#6db36e",
+    "#8fbe5b",
+    "#00d9a3",
+    "#3d9970",
+    "#a8d5a2",
+    "#2d6a4f",
+  ];
+  for (let i = 0; i < 16; i++) {
+    const el = document.createElement("div");
+    const size = 2 + Math.random() * 4;
+    const isSquare = Math.random() < 0.3;
+    el.style.cssText = `position:fixed;pointer-events:none;z-index:9999;
+      width:${size}px;height:${size}px;
+      border-radius:${isSquare ? "1px" : "50%"};
+      background:${COLORS[Math.floor(Math.random() * COLORS.length)]};
+      left:${cx}px;top:${cy}px;`;
+    document.body.appendChild(el);
+    const angle = -Math.PI * 0.9 + Math.random() * Math.PI * 1.8; // fan upward
+    const speed = 35 + Math.random() * 65;
+    const dx = Math.cos(angle) * speed;
+    const dy = Math.sin(angle) * speed - 10;
+    const rot = (Math.random() - 0.5) * 360;
+    el.animate(
+      [
+        {
+          transform: `translate(-50%,-50%) rotate(0deg) scale(1)`,
+          opacity: 0.9,
+        },
+        {
+          transform: `translate(calc(-50% + ${dx}px), calc(-50% + ${dy + 18}px)) rotate(${rot}deg) scale(0.2)`,
+          opacity: 0,
+        },
+      ],
+      {
+        duration: 450 + Math.random() * 300,
+        easing: "cubic-bezier(0.2, 0.8, 0.4, 1)",
+        fill: "forwards",
+      },
+    ).onfinish = () => el.remove();
+  }
+}
+
+function makeCounterHint() {
+  const hint = document.createElement("div");
+  hint.className = "counter-hint";
+  hint.innerHTML = `
+    <div class="counter-hint-body">
+      <span>Tap the middle to set exact reps</span>
+      <span>Hold +N to change the increment</span>
+    </div>
+    <button class="counter-hint-dismiss">Got it</button>`;
+  hint.querySelector(".counter-hint-dismiss").addEventListener("click", () => {
+    localStorage.setItem("np_counter_hint_shown", "1");
+    _counterHintActive = false;
+    hint.remove();
+  });
+  return hint;
+}
+
+const _countSaveTimers = new Map();
+let _counterHintActive = false;
+
+function handleCountChange(personName, exerciseId, delta) {
+  const ex = CONFIG.EXERCISES.find((e) => e.id === exerciseId);
+  if (!ex) return;
+
+  const currentCount = getCount(personName, exerciseId, state.todayStr);
+  const newCount = Math.max(0, Math.min(ex.targetCount, currentCount + delta));
+
+  if (newCount === currentCount) {
+    if (delta < 0) {
+      const cardEl = document.getElementById(
+        `card-${personName.replace(/\s+/g, "-")}`,
+      );
+      const decBtn = cardEl?.querySelector(
+        `.counter-btn[data-exercise="${exerciseId}"][data-direction="dec"]`,
+      );
+      if (decBtn) showLianeConfused(decBtn, 2200, 68, true);
+    }
+    return;
+  }
+
+  // Optimistic in-memory update
+  const idx = state.completions.findIndex(
+    (c) =>
+      c.date === state.todayStr &&
+      c.person === personName &&
+      c.exercise === exerciseId,
+  );
+  const nowCompleted = newCount >= ex.targetCount;
+  setCountLocal(personName, exerciseId, state.todayStr, newCount);
+  if (idx >= 0) {
+    state.completions[idx].completed = nowCompleted;
+  } else {
+    state.completions.push({
+      date: state.todayStr,
+      person: personName,
+      exercise: exerciseId,
+      completed: nowCompleted,
+      completedAt: nowCompleted ? localISOString(new Date()) : null,
+    });
+  }
+
+  // Update counter display
+  const cardEl = document.getElementById(
+    `card-${personName.replace(/\s+/g, "-")}`,
+  );
+  if (!cardEl) return;
+  const exItem = [...cardEl.querySelectorAll(".exercise-item")].find((el) =>
+    el.querySelector(`[data-exercise="${exerciseId}"]`),
+  );
+  const counterDisplay = exItem?.querySelector(".counter-display");
+  if (counterDisplay)
+    counterDisplay.textContent = `${newCount} / ${ex.targetCount} ${ex.unit}`;
+
+  // Sync exercise-item done state
+  const wasCompleted = exItem?.classList.contains("exercise-done");
+
+  if (nowCompleted && !wasCompleted) {
+    exItem?.classList.add("exercise-done");
+    playExerciseTick();
+    const allDone = CONFIG.EXERCISES.every(
+      (e) =>
+        isWorkoutComplete(personName, state.todayStr) ||
+        cardEl
+          .querySelector(`.exercise-item[data-exid="${e.id}"]`)
+          ?.classList.contains("exercise-done"),
+    );
+    if (
+      isWorkoutComplete(personName, state.todayStr) &&
+      !cardEl.classList.contains("completed-all")
+    ) {
+      cardEl.classList.add("completed-all", "just-completed");
+      cardEl.querySelector(".card-status").textContent = "🎉 All done!";
+      if (!cardEl.querySelector(".completion-banner")) {
+        const banner = document.createElement("div");
+        banner.className = "completion-banner";
+        banner.textContent = "🎉 Workout Complete!";
+        cardEl.appendChild(banner);
+      }
+      triggerConfetti(getParticipantColor(state.currentUser));
+      setTimeout(() => cardEl.classList.remove("just-completed"), 600);
+    } else {
+      const doneCount = cardEl.querySelectorAll(
+        ".exercise-item.exercise-done",
+      ).length;
+      cardEl.querySelector(".card-status").textContent =
+        `${doneCount}/${CONFIG.EXERCISES.length} completed`;
+    }
+  } else if (!nowCompleted && wasCompleted) {
+    exItem?.classList.remove("exercise-done");
+    cardEl.classList.remove("completed-all");
+    const banner = cardEl.querySelector(".completion-banner");
+    if (banner) banner.remove();
+    const doneCount = cardEl.querySelectorAll(
+      ".exercise-item.exercise-done",
+    ).length;
+    cardEl.querySelector(".card-status").textContent =
+      `${doneCount}/${CONFIG.EXERCISES.length} completed`;
+  }
+
+  // Debounced Firestore write
+  const timerKey = `${personName}_${exerciseId}`;
+  if (_countSaveTimers.has(timerKey))
+    clearTimeout(_countSaveTimers.get(timerKey));
+  _countSaveTimers.set(
+    timerKey,
+    setTimeout(async () => {
+      _countSaveTimers.delete(timerKey);
+      try {
+        await saveCompletion(personName, exerciseId, nowCompleted);
+        if (nowCompleted) {
+          const streak = calcStreak(personName);
+          const streakPill = cardEl.querySelector(".streak-pill");
+          if (streak > 0) {
+            if (!streakPill) {
+              const pill = document.createElement("div");
+              pill.className = "streak-pill";
+              pill.textContent = `🔥 ${streak}-day streak`;
+              cardEl
+                .querySelector(".card-status")
+                .insertAdjacentElement("afterend", pill);
+            } else {
+              streakPill.textContent = `🔥 ${streak}-day streak`;
+            }
+          }
+        }
+      } catch {
+        showToast("Failed to save. Try again.", "error");
+      }
+    }, 800),
+  );
 }
 
 // ============================================================
@@ -2567,6 +3104,19 @@ function isCurrentUserAdmin() {
   return p?.isAdmin === true;
 }
 
+function syncTimezoneOffset() {
+  if (!state.currentUser || !db) return;
+  const tz = new Date().getTimezoneOffset();
+  if (tz === state.currentUser.timezoneOffset) return;
+  state.currentUser.timezoneOffset = tz;
+  localStorage.setItem("np_current_user", JSON.stringify(state.currentUser));
+  const p = state.participants.find((p) => p.name === state.currentUser.name);
+  if (p) p.timezoneOffset = tz;
+  updateDoc(doc(db, "participants", state.currentUser.name), {
+    timezoneOffset: tz,
+  }).catch(() => {});
+}
+
 function showApp() {
   showScreen("app");
   renderHeader();
@@ -2577,6 +3127,7 @@ function showApp() {
   checkIOSInstallPrompt();
   initNotifications();
   advanceFineCheckpoints(); // fire-and-forget: advance stored aggregates to yesterday
+  syncTimezoneOffset();
 }
 
 // ============================================================
@@ -2678,15 +3229,8 @@ function bindEvents() {
   });
 
   document.addEventListener("visibilitychange", () => {
-    if (document.visibilityState !== "visible" || !state.currentUser) return;
-    const tz = new Date().getTimezoneOffset();
-    if (tz === state.currentUser.timezoneOffset) return;
-    state.currentUser.timezoneOffset = tz;
-    const p = state.participants.find((p) => p.name === state.currentUser.name);
-    if (p) p.timezoneOffset = tz;
-    updateDoc(doc(db, "participants", state.currentUser.name), {
-      timezoneOffset: tz,
-    }).catch(() => {});
+    if (document.visibilityState !== "visible") return;
+    syncTimezoneOffset();
   });
 
   document.querySelectorAll(".nav-item").forEach((btn) => {
@@ -3011,6 +3555,16 @@ async function init() {
   bindEvents();
   registerServiceWorker();
   loadOfflineQueue();
+  // Clean up stale daily rep counts from previous days (uses device local time)
+  (function pruneOldCounts() {
+    const today = getTodayStr();
+    for (let i = localStorage.length - 1; i >= 0; i--) {
+      const key = localStorage.key(i);
+      if (key?.startsWith("np_count_") && !key.endsWith(today)) {
+        localStorage.removeItem(key);
+      }
+    }
+  })();
   loadCurrentUser();
   updateOnlineStatus();
 
