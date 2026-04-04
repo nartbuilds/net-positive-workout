@@ -1154,21 +1154,10 @@ function renderTodayView() {
       const done = completedToday.includes(ex.id);
       let countNow = 0;
       if (isMe) {
-        if (done) {
-          countNow = ex.targetCount;
-          // Sync localStorage so - button reads the right value
-          if (
-            getCount(participant.name, ex.id, state.todayStr) < ex.targetCount
-          ) {
-            setCountLocal(
-              participant.name,
-              ex.id,
-              state.todayStr,
-              ex.targetCount,
-            );
-          }
-        } else {
-          countNow = getCount(participant.name, ex.id, state.todayStr);
+        countNow = getCount(participant.name, ex.id, state.todayStr);
+        if (!done && countNow >= ex.targetCount) {
+          setCountLocal(participant.name, ex.id, state.todayStr, 0);
+          countNow = 0;
         }
       }
       const counterDisabled = !isMe || sickToday ? "disabled" : "";
@@ -1223,7 +1212,8 @@ function renderTodayView() {
           const { person, exercise, direction } = e.currentTarget.dataset;
           const inc = getIncrement(exercise);
           handleCountChange(person, exercise, direction === "inc" ? inc : -inc);
-          if (direction === "inc") spawnMatchaParticles(btn);
+          if (direction === "inc") { spawnMatchaParticles(btn); playCounterInc(); }
+          else { playCounterDec(); }
         });
       });
       card.querySelectorAll(".counter-settings-btn").forEach((settingsBtn) => {
@@ -1496,11 +1486,11 @@ function showLianeConfused(
     ? rect.top - imgSize / 2 + 9
     : rect.top + rect.height / 2 - imgSize / 2;
   el.style.cssText = `
-    position: fixed;
+    position: absolute;
     width: ${imgSize}px;
     height: ${imgSize}px;
-    left: ${posLeft}px;
-    top: ${posTop}px;
+    left: ${posLeft + window.scrollX}px;
+    top: ${posTop + window.scrollY}px;
     pointer-events: none;
     z-index: 9999;
     animation: ${
@@ -2906,6 +2896,40 @@ function launchFireworks() {
     cancelAnimationFrame(rafId);
     canvas.remove();
   }, 6000);
+}
+
+function playCounterInc() {
+  try {
+    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    osc.type = "sine";
+    osc.frequency.setValueAtTime(520, ctx.currentTime);
+    osc.frequency.exponentialRampToValueAtTime(780, ctx.currentTime + 0.07);
+    gain.gain.setValueAtTime(0.12, ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.1);
+    osc.start(ctx.currentTime);
+    osc.stop(ctx.currentTime + 0.1);
+  } catch {}
+}
+
+function playCounterDec() {
+  try {
+    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    osc.type = "sine";
+    osc.frequency.setValueAtTime(420, ctx.currentTime);
+    osc.frequency.exponentialRampToValueAtTime(280, ctx.currentTime + 0.08);
+    gain.gain.setValueAtTime(0.09, ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.1);
+    osc.start(ctx.currentTime);
+    osc.stop(ctx.currentTime + 0.1);
+  } catch {}
 }
 
 function playExerciseTick() {
