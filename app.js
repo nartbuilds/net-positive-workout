@@ -1187,12 +1187,7 @@ function renderTodayView() {
   if (
     state.participants.length > 0 &&
     state.participants.every((p) =>
-      isWorkoutComplete(
-        p.name,
-        p.timezoneOffset != null
-          ? getTodayStrForOffset(p.timezoneOffset)
-          : state.todayStr,
-      ),
+      isWorkoutComplete(p.name, state.todayStr),
     )
   ) {
     triggerGroupGlory();
@@ -1208,10 +1203,7 @@ function renderTodayView() {
 
     const rows = others
       .map((p) => {
-        const pToday =
-          p.timezoneOffset != null
-            ? getTodayStrForOffset(p.timezoneOffset)
-            : state.todayStr;
+        const pToday = state.todayStr;
         const color = getParticipantColor(p);
         const done = getCompletedExercisesForDay(p.name, pToday);
         const isOtherSick = isSickDay(p.name, pToday);
@@ -1236,12 +1228,7 @@ function renderTodayView() {
       .join("");
 
     const allOthersDone = others.every((p) =>
-      isWorkoutComplete(
-        p.name,
-        p.timezoneOffset != null
-          ? getTodayStrForOffset(p.timezoneOffset)
-          : state.todayStr,
-      ),
+      isWorkoutComplete(p.name, state.todayStr),
     );
     if (allOthersDone) summary.classList.add("all-done");
     summary.innerHTML = `<div class="gsm-label">Group Today</div>${rows}`;
