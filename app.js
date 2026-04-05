@@ -3243,6 +3243,23 @@ function bindEvents() {
     });
 
   document
+    .getElementById("btn-toggle-glory")
+    .addEventListener("click", () => {
+      const btn = document.getElementById("btn-toggle-glory");
+      const active = document.body.classList.contains("group-glory-day");
+      if (active) {
+        document.getElementById("app").classList.remove("group-glory-day");
+        document.body.classList.remove("group-glory-day");
+        document.querySelector(".glory-today-alan")?.remove();
+        document.getElementById("glory-alan-float")?.remove();
+        btn.textContent = "Preview Glory Day";
+      } else {
+        applyGloryAmbient();
+        btn.textContent = "Disable Glory Day";
+      }
+    });
+
+  document
     .getElementById("btn-sync-aggregates")
     .addEventListener("click", syncAggregates);
 
