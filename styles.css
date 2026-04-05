@@ -923,7 +923,7 @@ body.group-glory-day #history-container {
 .exercise-item {
   display: flex;
   align-items: center;
-  gap: 14px;
+  gap: 10px;
   padding: 12px 16px;
   transition: var(--transition);
   position: relative;
@@ -933,53 +933,16 @@ body.group-glory-day #history-container {
   border-bottom: 1px solid rgba(255, 255, 255, 0.04);
 }
 
-.exercise-check {
-  width: 28px;
-  height: 28px;
-  border-radius: 50%;
-  border: 2px solid var(--border-bright);
-  background: transparent;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  flex-shrink: 0;
-  transition: var(--transition);
-  cursor: pointer;
-  -webkit-tap-highlight-color: transparent;
-}
-
-.exercise-check.checked {
-  background: var(--success);
-  border-color: var(--success);
-  box-shadow: 0 0 10px var(--success-glow);
-}
-
-.exercise-check.checked::after {
-  content: "✓";
-  color: white;
-  font-size: 0.9rem;
-  font-weight: 900;
-}
-
-.exercise-check:disabled {
-  cursor: not-allowed;
-  opacity: 0.6;
-}
-
-.exercise-info {
-  flex: 1;
-}
 
 .exercise-name {
   font-size: 0.925rem;
   font-weight: 700;
   color: var(--text-primary);
-}
-
-.exercise-target {
-  font-size: 0.78rem;
-  color: var(--text-secondary);
-  margin-top: 1px;
+  flex: 1;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .exercise-emoji {
@@ -995,15 +958,11 @@ body.group-glory-day #history-container {
   color: var(--success);
 }
 
-.exercise-item.exercise-done .exercise-emoji {
-  filter: drop-shadow(0 0 6px rgba(0, 217, 163, 0.6));
-}
 
 .exercise-counter {
   display: flex;
   align-items: center;
   gap: 6px;
-  margin-top: 6px;
   position: relative;
 }
 
@@ -1030,7 +989,7 @@ body.group-glory-day #history-container {
 }
 
 .counter-inc {
-  width: 54px;
+  width: 50px;
   text-align: center;
   background: rgba(0, 217, 163, 0.15);
   border: 1px solid rgba(0, 217, 163, 0.5);
@@ -1046,9 +1005,9 @@ body.group-glory-day #history-container {
   border: none;
   color: var(--text-secondary);
   font-size: 1rem;
-  width: 32px;
-  height: 32px;
-  margin-left: -5px;
+  width: 30px;
+  height: 30px;
+  margin-left: -2px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -1069,7 +1028,7 @@ body.group-glory-day #history-container {
 }
 
 .counter-display {
-  width: 100px;
+  width: 62px;
   flex-shrink: 0;
   font-size: 0.78rem;
   color: var(--text-secondary);
@@ -1080,7 +1039,7 @@ body.group-glory-day #history-container {
 }
 
 .counter-edit-input {
-  width: 88px;
+  width: 62px;
   flex-shrink: 0;
   background: rgba(0, 217, 163, 0.08);
   border: 1px solid var(--success);
@@ -1154,6 +1113,14 @@ body.group-glory-day #history-container {
     transform: translateY(-20px);
     opacity: 0;
   }
+}
+
+@keyframes liane-happy-bounce {
+  0%   { transform: scale(1) translateY(0); }
+  30%  { transform: scale(1.22) translateY(-8px); }
+  55%  { transform: scale(0.94) translateY(0); }
+  75%  { transform: scale(1.1) translateY(-4px); }
+  100% { transform: scale(1) translateY(0); }
 }
 
 /* Completion celebration */

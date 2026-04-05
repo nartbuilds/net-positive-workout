@@ -36,7 +36,7 @@ const CONFIG = {
   EXERCISES: [
     {
       id: "squats",
-      name: "100 Squats",
+      name: "Squats",
       emoji: "🦵",
       target: "100 reps",
       targetCount: 100,
@@ -45,7 +45,7 @@ const CONFIG = {
     },
     {
       id: "pushups",
-      name: "50 Push-ups",
+      name: "Push-ups",
       emoji: "💪",
       target: "50 reps",
       targetCount: 50,
@@ -54,7 +54,7 @@ const CONFIG = {
     },
     {
       id: "plank",
-      name: "5 Min Plank",
+      name: "Plank",
       emoji: "🧘",
       target: "5 minutes",
       targetCount: 5,
@@ -861,8 +861,12 @@ async function saveCompletion(personName, exerciseId, completed) {
       c.person === item.person &&
       c.exercise === item.exercise,
   );
-  if (idx >= 0) state.completions[idx].completed = completed;
-  else state.completions.push(item);
+  if (idx >= 0) {
+    state.completions[idx].completed = completed;
+    state.completions[idx].completedAt = item.completedAt;
+  } else {
+    state.completions.push(item);
+  }
 
   const docId = `${item.date}_${personName}_${exerciseId}`;
   try {
@@ -1155,7 +1159,10 @@ function renderTodayView() {
       let countNow = 0;
       if (isMe) {
         countNow = getCount(participant.name, ex.id, state.todayStr);
-        if (!done && countNow >= ex.targetCount) {
+        if (done && countNow < ex.targetCount) {
+          setCountLocal(participant.name, ex.id, state.todayStr, ex.targetCount);
+          countNow = ex.targetCount;
+        } else if (!done && countNow >= ex.targetCount) {
           setCountLocal(participant.name, ex.id, state.todayStr, 0);
           countNow = 0;
         }
@@ -1166,18 +1173,16 @@ function renderTodayView() {
         ? `
         <div class="exercise-counter">
           <button class="counter-btn counter-dec" data-person="${participant.name}" data-exercise="${ex.id}" data-direction="dec" ${counterDisabled}>−</button>
-          <span class="counter-display" data-person="${participant.name}" data-exercise="${ex.id}" data-target="${ex.targetCount}" data-unit="${ex.unit}" style="cursor:pointer" title="Tap to set exact count">${countNow} / ${ex.targetCount} ${ex.unit}</span>
+          <span class="counter-display" data-person="${participant.name}" data-exercise="${ex.id}" data-target="${ex.targetCount}" data-unit="${ex.unit}" style="cursor:pointer" title="Tap to set exact count (${ex.unit})">${countNow} / ${ex.targetCount}</span>
           <button class="counter-btn counter-inc" data-person="${participant.name}" data-exercise="${ex.id}" data-direction="inc" ${counterDisabled}>+${inc}</button>
           <button class="counter-settings-btn" data-exercise="${ex.id}" ${counterDisabled} title="Change increment">⚙</button>
         </div>`
         : "";
       return `
         <div class="exercise-item${done ? " exercise-done" : ""}">
-          <div class="exercise-info">
-            <div class="exercise-name">${ex.name}</div>
-            ${counterHTML || `<div class="exercise-target">${ex.target}</div>`}
-          </div>
           <span class="exercise-emoji">${ex.emoji}</span>
+          <span class="exercise-name">${ex.name}</span>
+          ${counterHTML}
         </div>
       `;
     }).join("");
@@ -1212,8 +1217,12 @@ function renderTodayView() {
           const { person, exercise, direction } = e.currentTarget.dataset;
           const inc = getIncrement(exercise);
           handleCountChange(person, exercise, direction === "inc" ? inc : -inc);
-          if (direction === "inc") { spawnMatchaParticles(btn); playCounterInc(); }
-          else { playCounterDec(); }
+          if (direction === "inc") {
+            spawnMatchaParticles(btn);
+            playCounterInc();
+          } else {
+            playCounterDec();
+          }
         });
       });
       card.querySelectorAll(".counter-settings-btn").forEach((settingsBtn) => {
@@ -1291,95 +1300,6 @@ function renderTodayView() {
 
   // Workout times chart
   container.insertAdjacentHTML("beforeend", renderWorkoutTimesChart());
-}
-
-async function handleExerciseCheck(e) {
-  const btn = e.currentTarget;
-  const personName = btn.dataset.person;
-  const exerciseId = btn.dataset.exercise;
-  if (personName !== state.currentUser?.name) return;
-  if (isSickDay(personName, state.todayStr)) return;
-
-  const wasChecked = btn.classList.contains("checked");
-  const nowChecked = !wasChecked;
-  btn.classList.toggle("checked", nowChecked);
-
-  const cardEl = btn.closest(".workout-card");
-  const allChecked = [...cardEl.querySelectorAll(".exercise-check")].every(
-    (b) => b.classList.contains("checked"),
-  );
-
-  const checkedCount = [...cardEl.querySelectorAll(".exercise-check.checked")]
-    .length;
-
-  if (nowChecked) playExerciseTick();
-
-  if (allChecked && !cardEl.classList.contains("completed-all")) {
-    cardEl.classList.add("completed-all", "just-completed");
-    cardEl.querySelector(".card-status").textContent = "🎉 All done!";
-    if (!cardEl.querySelector(".completion-banner")) {
-      const banner = document.createElement("div");
-      banner.className = "completion-banner";
-      banner.textContent = "🎉 Workout Complete!";
-      cardEl.appendChild(banner);
-    }
-    triggerConfetti(getParticipantColor(state.currentUser));
-    setTimeout(() => cardEl.classList.remove("just-completed"), 600);
-  } else if (!allChecked) {
-    cardEl.classList.remove("completed-all");
-    const banner = cardEl.querySelector(".completion-banner");
-    if (banner) banner.remove();
-    cardEl.querySelector(".card-status").textContent =
-      `${checkedCount}/${CONFIG.EXERCISES.length} completed`;
-  }
-
-  const ex = CONFIG.EXERCISES.find((e) => e.id === exerciseId);
-  const count = nowChecked ? (ex?.targetCount ?? 0) : 0;
-  setCountLocal(personName, exerciseId, state.todayStr, count);
-
-  // Sync counter display with checkbox state
-  const counterDisplay = btn
-    .closest(".exercise-item")
-    ?.querySelector(".counter-display");
-  if (counterDisplay && ex) {
-    counterDisplay.textContent = `${count} / ${ex.targetCount} ${ex.unit}`;
-  }
-
-  try {
-    await saveCompletion(personName, exerciseId, nowChecked);
-  } catch {
-    btn.classList.toggle("checked", wasChecked);
-    setCountLocal(
-      personName,
-      exerciseId,
-      state.todayStr,
-      wasChecked ? (ex?.targetCount ?? 0) : 0,
-    );
-    if (counterDisplay && ex) {
-      const revertCount = wasChecked ? (ex?.targetCount ?? 0) : 0;
-      counterDisplay.textContent = `${revertCount} / ${ex.targetCount} ${ex.unit}`;
-    }
-    showToast("Failed to save. Try again.", "error");
-    return;
-  }
-
-  // Update streak pill after state.completions is updated by saveCompletion
-  const streak = calcStreak(personName);
-  const streakPill = cardEl.querySelector(".streak-pill");
-  if (streak > 0) {
-    if (!streakPill) {
-      const pill = document.createElement("div");
-      pill.className = "streak-pill";
-      pill.textContent = `🔥 ${streak}-day streak`;
-      cardEl
-        .querySelector(".card-status")
-        .insertAdjacentElement("afterend", pill);
-    } else {
-      streakPill.textContent = `🔥 ${streak}-day streak`;
-    }
-  } else {
-    if (streakPill) streakPill.remove();
-  }
 }
 
 // ============================================================
@@ -1475,13 +1395,24 @@ function showLianeConfused(
   const el = document.createElement("div");
   el.id = "liane-confused-popup";
   el.innerHTML =
-    '<img src="/liane/liane_confused.png" alt="Liane confused" style="width:100%;height:100%;object-fit:contain;display:block;">';
+    '<img src="/liane/liane_confused.png" alt="Liane confused" style="width:100%;height:100%;object-fit:contain;display:block;" class="liane-img">';
   document.body.appendChild(el);
 
   const rect = anchorEl.getBoundingClientRect();
-  const posLeft = ghost
-    ? rect.left + rect.width / 2 - imgSize / 2
-    : rect.right + 18;
+  let posLeft;
+  let flipX = false;
+  if (ghost) {
+    posLeft = rect.left + rect.width / 2 - imgSize / 2;
+  } else {
+    const rightPos = rect.right + 18;
+    const leftPos = rect.left - imgSize - 18;
+    if (rightPos + imgSize > window.innerWidth && leftPos >= 0) {
+      posLeft = leftPos;
+      flipX = true;
+    } else {
+      posLeft = rightPos;
+    }
+  }
   const posTop = ghost
     ? rect.top - imgSize / 2 + 9
     : rect.top + rect.height / 2 - imgSize / 2;
@@ -1519,7 +1450,7 @@ function showLianeConfused(
     el.addEventListener("animationend", () => el.remove(), { once: true });
   }
 
-  return el;
+  return { el, flipX };
 }
 
 function editIncrement(btn) {
@@ -1541,10 +1472,9 @@ function editIncrement(btn) {
   input.focus();
   input.select();
 
-  const liane = showLianeConfused(btn, 0, 80);
+  const { el: liane, flipX: lianeFlipped } = showLianeConfused(btn, 0, 80);
 
   const commit = () => {
-    liane.remove();
     const val = Math.max(
       1,
       Math.min(ex?.targetCount ?? 100, parseInt(input.value) || 1),
@@ -1553,6 +1483,15 @@ function editIncrement(btn) {
     delete btn.dataset.editing;
     btn.style.padding = "";
     btn.textContent = `+${val}`;
+
+    const img = liane.querySelector(".liane-img");
+    img.src = "/liane/liane_happy.png";
+    img.style.transform = lianeFlipped ? "scaleX(-1)" : "";
+    liane.style.animation = "liane-happy-bounce 0.5s cubic-bezier(0.34,1.56,0.64,1) forwards";
+    setTimeout(() => {
+      liane.style.animation = "liane-fade-out 0.4s ease forwards";
+      liane.addEventListener("animationend", () => liane.remove(), { once: true });
+    }, 1000);
   };
   const cancel = () => {
     liane.remove();
@@ -1602,8 +1541,8 @@ function editCountInline(span) {
     newSpan.dataset.target = target;
     newSpan.dataset.unit = unit;
     newSpan.style.cursor = "pointer";
-    newSpan.title = "Tap to set exact count";
-    newSpan.textContent = `${val} / ${targetCount} ${unit}`;
+    newSpan.title = `Tap to set exact count (${unit})`;
+    newSpan.textContent = `${val} / ${targetCount}`;
     input.replaceWith(newSpan);
     newSpan.addEventListener("click", () => editCountInline(newSpan));
     if (delta !== 0) handleCountChange(person, exercise, delta);
@@ -1624,8 +1563,8 @@ function editCountInline(span) {
       newSpan.dataset.target = target;
       newSpan.dataset.unit = unit;
       newSpan.style.cursor = "pointer";
-      newSpan.title = "Tap to set exact count";
-      newSpan.textContent = `${currentCount} / ${targetCount} ${unit}`;
+      newSpan.title = `Tap to set exact count (${unit})`;
+      newSpan.textContent = `${currentCount} / ${targetCount}`;
       input.replaceWith(newSpan);
       newSpan.addEventListener("click", () => editCountInline(newSpan));
     }
@@ -1713,6 +1652,8 @@ function handleCountChange(personName, exerciseId, delta) {
   setCountLocal(personName, exerciseId, state.todayStr, newCount);
   if (idx >= 0) {
     state.completions[idx].completed = nowCompleted;
+    if (nowCompleted) state.completions[idx].completedAt = localISOString(new Date());
+    else if (!nowCompleted) state.completions[idx].completedAt = null;
   } else {
     state.completions.push({
       date: state.todayStr,
@@ -1733,7 +1674,7 @@ function handleCountChange(personName, exerciseId, delta) {
   );
   const counterDisplay = exItem?.querySelector(".counter-display");
   if (counterDisplay)
-    counterDisplay.textContent = `${newCount} / ${ex.targetCount} ${ex.unit}`;
+    counterDisplay.textContent = `${newCount} / ${ex.targetCount}`;
 
   // Sync exercise-item done state
   const wasCompleted = exItem?.classList.contains("exercise-done");
@@ -1741,13 +1682,6 @@ function handleCountChange(personName, exerciseId, delta) {
   if (nowCompleted && !wasCompleted) {
     exItem?.classList.add("exercise-done");
     playExerciseTick();
-    const allDone = CONFIG.EXERCISES.every(
-      (e) =>
-        isWorkoutComplete(personName, state.todayStr) ||
-        cardEl
-          .querySelector(`.exercise-item[data-exid="${e.id}"]`)
-          ?.classList.contains("exercise-done"),
-    );
     if (
       isWorkoutComplete(personName, state.todayStr) &&
       !cardEl.classList.contains("completed-all")
