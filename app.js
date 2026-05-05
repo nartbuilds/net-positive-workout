@@ -112,14 +112,19 @@ function initFirebase() {
 // PARTICIPANT COLORS
 // ============================================================
 const COLORS = [
-  "#6c63ff",
-  "#00d9a3",
-  "#ff6b6b",
-  "#ffd166",
-  "#ff9f43",
-  "#a29bfe",
-  "#fd79a8",
-  "#74b9ff",
+  "#6c63ff", // blue (was indigo) — index 0
+  "#00d9a3", // spring green (was teal) — index 1
+  "#ff6b6b", // red (was coral) — index 2
+  "#ffd166", // yellow — index 3
+  "#ff9f43", // orange — index 4
+  "#b58aff", // violet — index 5
+  "#fd79a8", // rose (was pink) — index 6
+  "#74b9ff", // azure (was sky blue) — index 7
+  "#c4e85d", // chartreuse green
+  "#6bd986", // green
+  "#5fdde5", // cyan
+  "#f070d0", // magenta
+  "#f5f5fa", // white
 ];
 
 // ============================================================
@@ -133,6 +138,10 @@ let state = {
   offlineQueue: [],
   cache: {},
   groupCelebratedToday: false,
+  chartRotated: (() => {
+    try { return localStorage.getItem("np_chart_rotated") === "1"; }
+    catch { return false; }
+  })(),
 };
 
 // ============================================================
@@ -420,6 +429,53 @@ async function submitChangePin() {
     showToast("PIN updated", "success");
   } catch (err) {
     showChangePinError("Failed to save: " + err.message);
+  }
+}
+
+function renderColorPicker() {
+  const wrap = document.getElementById("color-picker-swatches");
+  if (!wrap || !state.currentUser) return;
+  const currentIdx = state.currentUser.colorIndex;
+  // Build set of color indexes already taken by other participants
+  const taken = new Set(
+    state.participants
+      .filter((p) => p.name !== state.currentUser.name)
+      .map((p) => p.colorIndex),
+  );
+  wrap.innerHTML = COLORS.map((color, i) => {
+    const isCurrent = i === currentIdx;
+    const isTaken = taken.has(i) && !isCurrent;
+    return `<button type="button" class="color-swatch${isCurrent ? " selected" : ""}${isTaken ? " taken" : ""}" data-color-index="${i}" style="--swatch-color:${color};" ${isTaken ? "disabled" : ""} aria-label="Color ${i + 1}${isTaken ? " (taken)" : ""}"></button>`;
+  }).join("");
+  wrap.querySelectorAll(".color-swatch").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const idx = parseInt(btn.dataset.colorIndex, 10);
+      if (idx === state.currentUser.colorIndex) return;
+      saveColorChoice(idx);
+    });
+  });
+}
+
+async function saveColorChoice(newIdx) {
+  const prev = state.currentUser.colorIndex;
+  state.currentUser.colorIndex = newIdx;
+  const p = state.participants.find((p) => p.name === state.currentUser.name);
+  if (p) p.colorIndex = newIdx;
+  renderColorPicker();
+  renderHeader();
+  renderCurrentView();
+  try {
+    await updateDoc(doc(db, "participants", state.currentUser.name), {
+      colorIndex: newIdx,
+    });
+    showToast("Color updated", "success");
+  } catch (err) {
+    state.currentUser.colorIndex = prev;
+    if (p) p.colorIndex = prev;
+    renderColorPicker();
+    renderHeader();
+    renderCurrentView();
+    showToast("Failed to save color: " + err.message, "error");
   }
 }
 
@@ -1368,6 +1424,20 @@ function renderTodayView() {
 
   // Workout times chart
   container.insertAdjacentHTML("beforeend", renderWorkoutTimesChart());
+  const attachRotate = () => {
+    const btn = container.querySelector(".workout-times-chart-rotate");
+    if (!btn) return;
+    btn.addEventListener("click", () => {
+      state.chartRotated = !state.chartRotated;
+      try {
+        localStorage.setItem("np_chart_rotated", state.chartRotated ? "1" : "0");
+      } catch {}
+      const wrap = container.querySelector(".workout-times-chart");
+      if (wrap) wrap.outerHTML = renderWorkoutTimesChart();
+      attachRotate();
+    });
+  };
+  attachRotate();
 }
 
 // ============================================================
@@ -2058,51 +2128,50 @@ function renderWorkoutTimesChart() {
   const { days, series } = getWorkoutTimesChartData();
   const hasAnyData = series.some((s) => s.points.some((p) => p !== null));
 
-  const W = 600,
-    H = 230;
-  const PL = 42,
-    PR = 12,
-    PT = 12,
-    PB = 32;
-  const CW = W - PL - PR,
-    CH = H - PT - PB;
-
-  // Adaptive Y range: zoom to actual data with padding, min 3h span
+  // Adaptive time range: zoom to actual data with padding, min 3h span
   const allMins = series.flatMap((s) => s.points.filter((p) => p !== null));
-  let YMIN, YMAX;
+  let TMIN, TMAX;
   if (allMins.length) {
-    YMIN = Math.max(0, Math.floor((Math.min(...allMins) - 45) / 60) * 60);
-    YMAX = Math.min(1440, Math.ceil((Math.max(...allMins) + 45) / 60) * 60);
-    if (YMAX - YMIN < 180) {
-      const mid = (YMIN + YMAX) / 2;
-      YMIN = Math.max(0, Math.round(mid / 60) * 60 - 90);
-      YMAX = YMIN + 180;
+    TMIN = Math.max(0, Math.floor((Math.min(...allMins) - 45) / 60) * 60);
+    TMAX = Math.min(1440, Math.ceil((Math.max(...allMins) + 45) / 60) * 60);
+    if (TMAX - TMIN < 180) {
+      const mid = (TMIN + TMAX) / 2;
+      TMIN = Math.max(0, Math.round(mid / 60) * 60 - 90);
+      TMAX = TMIN + 180;
     }
   } else {
-    YMIN = 300;
-    YMAX = 1380;
+    TMIN = 300;
+    TMAX = 1380;
   }
+
+  const W = 600;
+  const H = 230;
+  const PL = 50;
+  const PR = 12;
+  const PT = 16;
+  const PB = 38;
+  const CW = W - PL - PR;
+  const CH = H - PT - PB;
 
   const xFor = (i) =>
     PL + (days.length > 1 ? (i / (days.length - 1)) * CW : CW / 2);
   const yFor = (mins) =>
     PT +
-    (1 - (Math.min(Math.max(mins, YMIN), YMAX) - YMIN) / (YMAX - YMIN)) * CH;
+    (1 - (Math.min(Math.max(mins, TMIN), TMAX) - TMIN) / (TMAX - TMIN)) * CH;
 
-  // Y grid + labels — only hours within the adaptive range, every 2h
-  let grid = "",
-    yLabels = "";
-  for (let h = Math.ceil(YMIN / 60); h <= Math.floor(YMAX / 60); h += 2) {
+  // Time grid + labels (every 2h within range)
+  let grid = "";
+  let timeLabels = "";
+  for (let h = Math.ceil(TMIN / 60); h <= Math.floor(TMAX / 60); h += 2) {
     const y = yFor(h * 60);
     grid += `<line x1="${PL}" y1="${y}" x2="${W - PR}" y2="${y}" stroke="rgba(255,255,255,0.07)" stroke-width="1"/>`;
-    const lbl =
-      h === 12 ? "12p" : h === 0 ? "12a" : h < 12 ? `${h}a` : `${h - 12}p`;
-    yLabels += `<text x="${PL - 5}" y="${y + 4}" text-anchor="end" fill="#5a5a80" font-size="10">${lbl}</text>`;
+    const lbl = String(h).padStart(2, "0");
+    timeLabels += `<text x="${PL - 8}" y="${y + 4}" text-anchor="end" fill="#a5a5c8" font-size="12" font-weight="600">${lbl}</text>`;
   }
 
-  // X labels — every 7 days + last day, skip any that would collide (min 50px gap)
+  // Date labels — every 7 days + last day, skip any that would collide (min 50px gap)
   const MIN_X_GAP = 50;
-  let xLabels = "";
+  let dateLabels = "";
   let lastLabelX = -Infinity;
   const xCandidates = [];
   for (let i = 0; i < days.length; i += 7) xCandidates.push(i);
@@ -2116,7 +2185,7 @@ function renderWorkoutTimesChart() {
         month: "short",
         day: "numeric",
       });
-      xLabels += `<text x="${x}" y="${H - PB + 14}" text-anchor="middle" fill="#5a5a80" font-size="10">${lbl}</text>`;
+      dateLabels += `<text x="${x}" y="${H - PB + 18}" text-anchor="middle" fill="#a5a5c8" font-size="12" font-weight="600">${lbl}</text>`;
       lastLabelX = x;
     }
   }
@@ -2125,7 +2194,6 @@ function renderWorkoutTimesChart() {
   let seriesSVG = "";
   if (hasAnyData) {
     for (const s of series) {
-      // Build runs of consecutive non-null points for polylines
       let run = [];
       const flush = () => {
         if (run.length >= 2) {
@@ -2140,15 +2208,12 @@ function renderWorkoutTimesChart() {
       }
       flush();
 
-      // Dots
       for (let i = 0; i < s.points.length; i++) {
         const mins = s.points[i];
         if (mins === null) continue;
-        const hh = Math.floor(mins / 60);
+        const hh = String(Math.floor(mins / 60)).padStart(2, "0");
         const mm = String(mins % 60).padStart(2, "0");
-        const ampm = hh >= 12 ? "PM" : "AM";
-        const h12 = hh % 12 || 12;
-        seriesSVG += `<circle cx="${xFor(i)}" cy="${yFor(mins)}" r="3.5" fill="${s.color}" stroke="#0a0a0f" stroke-width="1.5"><title>${s.name}: ${h12}:${mm} ${ampm}</title></circle>`;
+        seriesSVG += `<circle cx="${xFor(i)}" cy="${yFor(mins)}" r="3.5" fill="${s.color}" stroke="#0a0a0f" stroke-width="1.5"><title>${s.name}: ${hh}:${mm}</title></circle>`;
       }
     }
   }
@@ -2174,8 +2239,8 @@ function renderWorkoutTimesChart() {
         ${grid}
         <line x1="${PL}" y1="${PT}" x2="${PL}" y2="${H - PB}" stroke="rgba(255,255,255,0.12)" stroke-width="1"/>
         <line x1="${PL}" y1="${H - PB}" x2="${W - PR}" y2="${H - PB}" stroke="rgba(255,255,255,0.12)" stroke-width="1"/>
-        ${yLabels}
-        ${xLabels}
+        ${timeLabels}
+        ${dateLabels}
         ${seriesSVG}
         ${emptyMsg}
       </svg>
@@ -3248,6 +3313,7 @@ function bindEvents() {
       .getElementById("btn-remove-avatar")
       .classList.toggle("hidden", !state.currentUser.avatar);
     document.getElementById("btn-save-avatar").disabled = true;
+    renderColorPicker();
     openModal("avatar-modal");
   });
 
