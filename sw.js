@@ -1,4 +1,4 @@
-const CACHE = "netpve-v74";
+const CACHE = "netpve-v78";
 const SHELL = ["/", "/index.html", "/styles.css", "/app.js", "/manifest.json", "/alan/alan_neutral.png", "/alan/alan_cheer.png", "/alan/alan_heart.png", "/alan/alan_scared.png", "/alan/alan_tired.png"];
 
 // Install: cache app shell, take over immediately

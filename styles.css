@@ -1681,22 +1681,45 @@ body.group-glory-day #history-container {
 
 .history-summary {
   display: flex;
+  flex-direction: column;
+}
+.history-summary-row {
+  display: grid;
   gap: 0;
 }
+.history-summary-row.primary {
+  grid-template-columns: repeat(4, 1fr);
+}
+.history-summary-row.secondary {
+  grid-template-columns: repeat(3, 1fr);
+  border-top: 1px dashed var(--border);
+  background: rgba(255, 255, 255, 0.015);
+}
 .history-summary-stat {
-  flex: 1;
   text-align: center;
   padding: 10px 4px;
   border-right: 1px solid var(--border);
+  min-width: 0;
 }
-.history-summary-stat:last-child {
+.history-summary-row .history-summary-stat:last-child {
   border-right: none;
 }
 .history-summary-value {
-  font-size: 1rem;
+  font-size: 1.05rem;
   font-weight: 900;
   font-family: var(--font-mono);
   color: var(--text-primary);
+}
+.history-summary-row.secondary .history-summary-value {
+  font-size: 0.85rem;
+  opacity: 0.85;
+}
+.history-summary-row.secondary .history-summary-label {
+  font-size: 0.55rem;
+}
+.history-summary-time {
+  letter-spacing: -0.02em;
+  white-space: nowrap;
 }
 .history-summary-label {
   font-size: 0.6rem;

@@ -542,6 +542,25 @@ async function toggleSickDay(name, date) {
   }
 }
 
+function parseTimeLabelToMinutes(label) {
+  const m = label?.match(/^(\d{1,2}):(\d{2}) (AM|PM)$/);
+  if (!m) return null;
+  let h = parseInt(m[1], 10);
+  const min = parseInt(m[2], 10);
+  if (m[3] === "PM" && h !== 12) h += 12;
+  if (m[3] === "AM" && h === 12) h = 0;
+  return h * 60 + min;
+}
+
+function formatMinutesToTimeLabel(mins) {
+  if (mins == null) return "—";
+  let h = Math.floor(mins / 60);
+  const min = String(mins % 60).padStart(2, "0");
+  const ampm = h >= 12 ? "PM" : "AM";
+  h = h % 12 || 12;
+  return `${h}:${min} ${ampm}`;
+}
+
 function getWorkoutCompletionTime(personName, date) {
   if (!isWorkoutComplete(personName, date)) return null;
   const completions = state.completions.filter(
@@ -637,10 +656,18 @@ async function advanceFineCheckpoints() {
 
     let streak = p.currentStreak ?? 0;
     let addedFines = 0;
+    let earliestMins = p.earliestWorkoutMinutes ?? null;
+    let latestMins = p.latestWorkoutMinutes ?? null;
 
     for (const date of newDates) {
       if (isWorkoutComplete(p.name, date)) {
         streak++;
+        const tLabel = getWorkoutCompletionTime(p.name, date);
+        const tMins = parseTimeLabelToMinutes(tLabel);
+        if (tMins != null) {
+          if (earliestMins == null || tMins < earliestMins) earliestMins = tMins;
+          if (latestMins == null || tMins > latestMins) latestMins = tMins;
+        }
       } else if (isSickDay(p.name, date)) {
         // sick day: no fine, streak pauses (no increment, no reset)
       } else {
@@ -661,6 +688,8 @@ async function advanceFineCheckpoints() {
       finesThrough: yesterday,
       currentStreak: streak,
       bestStreak: Math.max(p.bestStreak ?? 0, streak),
+      earliestWorkoutMinutes: earliestMins,
+      latestWorkoutMinutes: latestMins,
     };
 
     try {
@@ -711,11 +740,20 @@ async function syncAggregates() {
 
       let bestStreak = 0;
       let currentStreak = 0;
+      let earliestMins = null;
+      let latestMins = null;
 
       for (const date of allDates) {
         if (isWorkoutComplete(p.name, date)) {
           currentStreak++;
           bestStreak = Math.max(bestStreak, currentStreak);
+          const tMins = parseTimeLabelToMinutes(
+            getWorkoutCompletionTime(p.name, date),
+          );
+          if (tMins != null) {
+            if (earliestMins == null || tMins < earliestMins) earliestMins = tMins;
+            if (latestMins == null || tMins > latestMins) latestMins = tMins;
+          }
         } else if (isSickDay(p.name, date)) {
           // sick day: streak pauses (no increment, no reset)
         } else {
@@ -731,6 +769,8 @@ async function syncAggregates() {
         finesThrough: yesterday,
         currentStreak,
         bestStreak,
+        earliestWorkoutMinutes: earliestMins,
+        latestWorkoutMinutes: latestMins,
       };
       await updateDoc(doc(db, "participants", p.name), updates);
       Object.assign(p, updates);
@@ -1843,12 +1883,45 @@ function renderLeaderboard() {
       isWorkoutComplete(p.name, d),
     ).length;
     const streak = state.cache[p.name]?.streak ?? calcStreak(p.name);
-    const completionTimestamp = (() => {
-      const ts = state.completions
-        .filter((c) => c.person === p.name && c.completed && c.completedAt)
-        .map((c) => new Date(c.completedAt).getTime())
-        .filter((t) => !isNaN(t));
-      return ts.length ? Math.max(...ts) : 0;
+    // Find the latest day this person fully completed their workout, and
+    // the local time-of-day they finished it. Used as a tiebreak so that
+    // "equal 1st" is ordered by who finished their workout earliest in
+    // their own local time. Partial/in-progress days are ignored — marking
+    // 1/3 today shouldn't drop you below people who completed yesterday.
+    const lastWorkout = (() => {
+      const datesDone = [
+        ...new Set(
+          state.completions
+            .filter((c) => c.person === p.name && c.completed)
+            .map((c) => c.date),
+        ),
+      ]
+        .filter((d) => isWorkoutComplete(p.name, d))
+        .sort();
+      if (!datesDone.length) return null;
+      const lastDate = datesDone[datesDone.length - 1];
+      const dayCompletions = state.completions.filter(
+        (c) =>
+          c.date === lastDate &&
+          c.person === p.name &&
+          c.completed &&
+          c.completedAt,
+      );
+      if (!dayCompletions.length) return null;
+      const latestMs = Math.max(
+        ...dayCompletions
+          .map((c) => new Date(c.completedAt).getTime())
+          .filter((t) => !isNaN(t)),
+      );
+      const latest = dayCompletions.find(
+        (c) => new Date(c.completedAt).getTime() === latestMs,
+      );
+      // Extract local hh:mm from the stored local ISO string (with offset)
+      const m = latest?.completedAt.match(/T(\d{2}):(\d{2})/);
+      const localMinutes = m
+        ? parseInt(m[1], 10) * 60 + parseInt(m[2], 10)
+        : null;
+      return { date: lastDate, localMinutes };
     })();
 
     return {
@@ -1856,17 +1929,24 @@ function renderLeaderboard() {
       totalFines,
       totalCompletions,
       streak,
-      completionTimestamp,
+      lastWorkout,
     };
   });
 
   data.sort((a, b) => {
     if (a.totalFines !== b.totalFines) return a.totalFines - b.totalFines;
     if (a.streak !== b.streak) return b.streak - a.streak;
-    if (!a.completionTimestamp && !b.completionTimestamp) return 0;
-    if (!a.completionTimestamp) return 1; // not completed today → goes after
-    if (!b.completionTimestamp) return -1;
-    return a.completionTimestamp - b.completionTimestamp; // earlier finish → first
+    // Tiebreak: prefer person whose most recent completed workout is more
+    // recent; within the same date, earlier local finish time wins.
+    const aw = a.lastWorkout, bw = b.lastWorkout;
+    if (!aw && !bw) return 0;
+    if (!aw) return 1;
+    if (!bw) return -1;
+    if (aw.date !== bw.date) return aw.date < bw.date ? 1 : -1;
+    if (aw.localMinutes == null && bw.localMinutes == null) return 0;
+    if (aw.localMinutes == null) return 1;
+    if (bw.localMinutes == null) return -1;
+    return aw.localMinutes - bw.localMinutes;
   });
 
   const rankEmojis = ["🥇", "🥈", "🥉"];
@@ -2157,6 +2237,23 @@ async function renderHistory() {
         ? Math.round((completedDays / totalCountedDays) * 100)
         : 100;
 
+    // Earliest / latest completion times — all-time. Stored aggregates on the
+    // participant doc cover history older than the 90-day window; we merge in
+    // any completions inside the visible window (including today) so a brand
+    // new fastest/slowest workout is reflected immediately.
+    let earliestMins = participant.earliestWorkoutMinutes ?? null;
+    let latestMins = participant.latestWorkoutMinutes ?? null;
+    for (const date of allDays) {
+      const tMins = parseTimeLabelToMinutes(
+        getWorkoutCompletionTime(participant.name, date),
+      );
+      if (tMins == null) continue;
+      if (earliestMins == null || tMins < earliestMins) earliestMins = tMins;
+      if (latestMins == null || tMins > latestMins) latestMins = tMins;
+    }
+    const earliestLabel = formatMinutesToTimeLabel(earliestMins);
+    const latestLabel = formatMinutesToTimeLabel(latestMins);
+
     // Date label without month (used inside month sections)
     const fmtDay = (dateStr) => {
       const d = new Date(dateStr + "T00:00:00");
@@ -2251,25 +2348,37 @@ async function renderHistory() {
         <span class="history-chevron"></span>
       </div>
       <div class="history-summary">
-        <div class="history-summary-stat">
-          <div class="history-summary-value" style="color:var(--danger);">-$${totalFines}</div>
-          <div class="history-summary-label">Fines</div>
+        <div class="history-summary-row primary">
+          <div class="history-summary-stat">
+            <div class="history-summary-value" style="color:var(--danger);">-$${totalFines}</div>
+            <div class="history-summary-label">Fines</div>
+          </div>
+          <div class="history-summary-stat">
+            <div class="history-summary-value" style="color:var(--warning);">${streak}</div>
+            <div class="history-summary-label">Streak</div>
+          </div>
+          <div class="history-summary-stat">
+            <div class="history-summary-value" style="color:var(--success);">${completedDays}</div>
+            <div class="history-summary-label">Days</div>
+          </div>
+          <div class="history-summary-stat">
+            <div class="history-summary-value" style="color:var(--success);">${completionRate}%</div>
+            <div class="history-summary-label">Rate</div>
+          </div>
         </div>
-        <div class="history-summary-stat">
-          <div class="history-summary-value" style="color:var(--warning);">${streak}</div>
-          <div class="history-summary-label">Streak</div>
-        </div>
-        <div class="history-summary-stat">
-          <div class="history-summary-value" style="color:var(--warning);">${bestStreak}</div>
-          <div class="history-summary-label">Best</div>
-        </div>
-        <div class="history-summary-stat">
-          <div class="history-summary-value" style="color:var(--success);">${completedDays}</div>
-          <div class="history-summary-label">Days</div>
-        </div>
-        <div class="history-summary-stat">
-          <div class="history-summary-value" style="color:var(--success);">${completionRate}%</div>
-          <div class="history-summary-label">Rate</div>
+        <div class="history-summary-row secondary">
+          <div class="history-summary-stat">
+            <div class="history-summary-value" style="color:var(--warning);">${bestStreak}</div>
+            <div class="history-summary-label">Best</div>
+          </div>
+          <div class="history-summary-stat">
+            <div class="history-summary-value history-summary-time" style="color:var(--accent);">${earliestLabel}</div>
+            <div class="history-summary-label">Earliest</div>
+          </div>
+          <div class="history-summary-stat">
+            <div class="history-summary-value history-summary-time" style="color:var(--accent);">${latestLabel}</div>
+            <div class="history-summary-label">Latest</div>
+          </div>
         </div>
       </div>
       <div class="history-days"><div class="history-days-inner">${monthsHTML}</div></div>
