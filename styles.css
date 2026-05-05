@@ -1195,79 +1195,118 @@ body.group-glory-day #history-container {
   margin-bottom: 10px;
 }
 
-.gsm-row {
+.gsm-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+}
+
+@media (max-width: 360px) {
+  .gsm-grid {
+    gap: 6px;
+  }
+  .gsm-tile {
+    padding: 10px 4px 8px;
+  }
+}
+
+.gsm-tile {
+  position: relative;
   display: flex;
+  flex-direction: column;
   align-items: center;
-  gap: 10px;
-  padding: 7px 0;
+  gap: 6px;
+  padding: 12px 8px 10px;
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  transition:
+    background 0.25s,
+    border-color 0.25s,
+    transform 0.25s;
 }
 
-.gsm-row:not(:last-child) {
-  border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+.gsm-tile.done {
+  background: linear-gradient(
+    180deg,
+    rgba(0, 217, 163, 0.12) 0%,
+    rgba(0, 217, 163, 0.04) 100%
+  );
+  border-color: rgba(0, 217, 163, 0.35);
 }
 
-.gsm-avatar {
-  width: 28px;
-  height: 28px;
-  border-radius: 50%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 0.62rem;
-  font-weight: 800;
-  color: white;
-  flex-shrink: 0;
+.gsm-tile.sick {
+  background: rgba(255, 209, 102, 0.06);
+  border-color: rgba(255, 209, 102, 0.25);
 }
 
-.gsm-name {
-  flex: 1;
-  font-size: 0.85rem;
+.gsm-ring {
+  display: block;
+}
+
+.gsm-ring-fg {
+  transition: stroke-dashoffset 0.6s cubic-bezier(0.22, 1, 0.36, 1);
+  filter: drop-shadow(0 0 4px var(--tile-color, transparent));
+}
+
+.gsm-tile.done .gsm-ring-fg {
+  filter: drop-shadow(0 0 6px rgba(0, 217, 163, 0.5));
+}
+
+.gsm-tile-name {
+  font-size: 0.8rem;
   font-weight: 700;
-}
-
-.gsm-exercises {
-  display: flex;
-  gap: 4px;
-}
-
-.gsm-time {
-  font-size: 0.72rem;
-  color: var(--text-secondary);
-  font-family: var(--font-mono);
+  color: var(--text-primary);
+  text-align: center;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
   white-space: nowrap;
-  width: 60px;
-  text-align: left;
-  flex-shrink: 0;
 }
 
-.gsm-ex {
+.gsm-status {
   font-size: 0.68rem;
   font-weight: 700;
-  padding: 2px 6px;
-  border-radius: 100px;
-  white-space: nowrap;
-}
-
-.gsm-ex.done {
-  background: rgba(0, 217, 163, 0.25);
-  color: var(--success);
-  font-weight: 800;
-  box-shadow: 0 0 6px rgba(0, 217, 163, 0.2);
-}
-
-.gsm-ex.pending {
-  background: rgba(90, 90, 128, 0.12);
   color: var(--text-muted);
+  font-family: var(--font-mono);
+  letter-spacing: 0.02em;
 }
 
-.gsm-sick-badge {
-  font-size: 0.7rem;
-  font-weight: 700;
-  padding: 2px 8px;
-  border-radius: 100px;
-  background: rgba(255, 209, 102, 0.15);
+.gsm-status.done {
+  color: var(--success);
+}
+
+.gsm-status.sick {
   color: var(--warning);
-  white-space: nowrap;
+}
+
+.gsm-dots {
+  display: flex;
+  gap: 4px;
+  margin-top: 2px;
+}
+
+.gsm-dot {
+  width: 18px;
+  height: 18px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  font-size: 0.7rem;
+  line-height: 1;
+  transition: all 0.25s;
+}
+
+.gsm-dot.done {
+  background: rgba(0, 217, 163, 0.25);
+  box-shadow: 0 0 6px rgba(0, 217, 163, 0.25);
+  filter: none;
+}
+
+.gsm-dot.pending {
+  background: rgba(90, 90, 128, 0.12);
+  filter: grayscale(1) opacity(0.45);
 }
 
 /* ============================================

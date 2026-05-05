@@ -267,6 +267,30 @@ function avatarHTML(participant, className) {
   return `<div class="${className}" style="background:${color};">${getInitials(participant.name)}</div>`;
 }
 
+function progressRingHTML(pct, color, sick, participant) {
+  const size = 64;
+  const stroke = 5;
+  const r = (size - stroke) / 2;
+  const c = 2 * Math.PI * r;
+  const clamped = Math.max(0, Math.min(1, pct));
+  const offset = c * (1 - clamped);
+  const initials = getInitials(participant.name);
+  const innerSize = size - stroke * 2 - 4;
+  const inner = participant.avatar
+    ? `<image href="${participant.avatar}" x="${(size - innerSize) / 2}" y="${(size - innerSize) / 2}" width="${innerSize}" height="${innerSize}" clip-path="circle(${innerSize / 2}px at ${innerSize / 2}px ${innerSize / 2}px)" preserveAspectRatio="xMidYMid slice"/>`
+    : `<circle cx="${size / 2}" cy="${size / 2}" r="${innerSize / 2}" fill="${color}"/><text x="${size / 2}" y="${size / 2}" text-anchor="middle" dominant-baseline="central" fill="white" font-size="11" font-weight="800">${initials}</text>`;
+  return `
+    <svg class="gsm-ring" width="${size}" height="${size}" viewBox="0 0 ${size} ${size}">
+      <circle cx="${size / 2}" cy="${size / 2}" r="${r}" fill="none" stroke="rgba(255,255,255,0.08)" stroke-width="${stroke}"/>
+      <circle class="gsm-ring-fg" cx="${size / 2}" cy="${size / 2}" r="${r}" fill="none"
+        stroke="${sick ? "var(--warning)" : color}" stroke-width="${stroke}" stroke-linecap="round"
+        stroke-dasharray="${c.toFixed(2)}" stroke-dashoffset="${offset.toFixed(2)}"
+        transform="rotate(-90 ${size / 2} ${size / 2})"/>
+      ${inner}
+    </svg>
+  `;
+}
+
 function resizeImageToBase64(file, size = 80, quality = 0.75) {
   return new Promise((resolve, reject) => {
     const img = new Image();
@@ -1264,27 +1288,31 @@ function renderTodayView() {
     const summary = document.createElement("div");
     summary.className = "today-group-summary";
 
-    const rows = others
+    const tiles = others
       .map((p) => {
         const pToday = state.todayStr;
         const color = getParticipantColor(p);
         const done = getCompletedExercisesForDay(p.name, pToday);
         const isOtherSick = isSickDay(p.name, pToday);
         const isOtherDone = isWorkoutComplete(p.name, pToday);
-        const exBadges =
-          isOtherSick && !isOtherDone
-            ? `<span class="gsm-sick-badge">🤒 sick</span>`
-            : CONFIG.EXERCISES.map((ex) => {
-                const isDone = done.includes(ex.id);
-                return `<span class="gsm-ex ${isDone ? "done" : "pending"}">${ex.emoji}</span>`;
-              }).join("");
+        const total = CONFIG.EXERCISES.length;
+        const pct = isOtherSick && !isOtherDone ? 0 : done.length / total;
         const completionTime = getWorkoutCompletionTime(p.name, pToday);
+        const dots = CONFIG.EXERCISES.map((ex) => {
+          const isDone = done.includes(ex.id);
+          return `<span class="gsm-dot ${isDone ? "done" : "pending"}" title="${ex.name}">${ex.emoji}</span>`;
+        }).join("");
+        const statusLine = isOtherDone
+          ? `<span class="gsm-status done">${completionTime ?? "✓"}</span>`
+          : isOtherSick
+            ? `<span class="gsm-status sick">🤒 sick day</span>`
+            : `<span class="gsm-status">${done.length}/${total}</span>`;
         return `
-        <div class="gsm-row">
-          ${avatarHTML(p, "gsm-avatar")}
-          <span class="gsm-name">${p.name}</span>
-          <span class="gsm-time">${completionTime ?? ""}</span>
-          <div class="gsm-exercises">${exBadges}</div>
+        <div class="gsm-tile${isOtherDone ? " done" : ""}${isOtherSick && !isOtherDone ? " sick" : ""}" style="--tile-color:${color}">
+          ${progressRingHTML(pct, color, isOtherSick && !isOtherDone, p)}
+          <div class="gsm-tile-name">${p.name}</div>
+          ${statusLine}
+          <div class="gsm-dots">${dots}</div>
         </div>
       `;
       })
@@ -1294,7 +1322,7 @@ function renderTodayView() {
       isWorkoutComplete(p.name, state.todayStr),
     );
     if (allOthersDone) summary.classList.add("all-done");
-    summary.innerHTML = `<div class="gsm-label">Group Today</div>${rows}`;
+    summary.innerHTML = `<div class="gsm-label">Group Today</div><div class="gsm-grid">${tiles}</div>`;
     container.appendChild(summary);
   }
 
