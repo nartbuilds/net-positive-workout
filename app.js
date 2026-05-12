@@ -1551,6 +1551,9 @@ function showLianeConfused(
       posLeft = rightPos;
     }
   }
+  const img = el.querySelector(".liane-img");
+  if (flipX && img) img.style.transform = "scaleX(-1)";
+
   const posTop = ghost
     ? rect.top - imgSize / 2 + 9
     : rect.top + rect.height / 2 - imgSize / 2;
@@ -1623,8 +1626,8 @@ function editIncrement(btn) {
     btn.textContent = `+${val}`;
 
     const img = liane.querySelector(".liane-img");
-    img.src = "/liane/liane_happy.png";
     img.style.transform = lianeFlipped ? "scaleX(-1)" : "";
+    img.src = "/liane/liane_happy.png";
     liane.style.animation = "liane-happy-bounce 0.5s cubic-bezier(0.34,1.56,0.64,1) forwards";
     setTimeout(() => {
       liane.style.animation = "liane-fade-out 0.4s ease forwards";
