@@ -1623,6 +1623,7 @@ function editIncrement(btn) {
     btn.textContent = `+${val}`;
 
     const img = liane.querySelector(".liane-img");
+    img.style.transform = "scaleX(-1)";
     img.src = "/liane/liane_happy.png";
     liane.style.animation = "liane-happy-bounce 0.5s cubic-bezier(0.34,1.56,0.64,1) forwards";
     setTimeout(() => {
