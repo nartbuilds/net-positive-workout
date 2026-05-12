@@ -1623,8 +1623,15 @@ function editIncrement(btn) {
     btn.textContent = `+${val}`;
 
     const img = liane.querySelector(".liane-img");
-    img.style.transform = "scaleX(-1)";
-    img.src = "/liane/liane_happy.png";
+    const happyImg = new Image();
+    happyImg.src = "/liane/liane_happy.png";
+    happyImg.alt = "Liane happy";
+    happyImg.className = "liane-img";
+    happyImg.style.cssText =
+      "width:100%;height:100%;object-fit:contain;display:block;transform:scaleX(-1);";
+    const swapToHappy = () => img?.replaceWith(happyImg);
+    if (happyImg.decode) happyImg.decode().then(swapToHappy).catch(swapToHappy);
+    else happyImg.onload = swapToHappy;
     liane.style.animation = "liane-happy-bounce 0.5s cubic-bezier(0.34,1.56,0.64,1) forwards";
     setTimeout(() => {
       liane.style.animation = "liane-fade-out 0.4s ease forwards";
