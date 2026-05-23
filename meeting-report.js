@@ -390,27 +390,6 @@ function renderHtml() {
     return `<h3>${p}</h3><p class="summary">${sumOrder(p)}</p><div class="table-wrap"><table>${rows}</table></div>`;
   }).join("");
 
-  // Heatmap subplot layout
-  const heatmapLayout = {
-    grid: { rows: people.length, columns: 1, pattern: "independent" },
-    height: 180 * people.length,
-    margin: { t: 30, l: 60, r: 40, b: 40 },
-    paper_bgcolor: "#1a1a1a",
-    plot_bgcolor: "#1a1a1a",
-    font: { color: "#ddd" },
-    annotations: people.map((p, i) => ({
-      text: p,
-      xref: "paper",
-      yref: "paper",
-      x: 0,
-      xanchor: "left",
-      y: 1 - i / people.length,
-      yanchor: "top",
-      showarrow: false,
-      font: { size: 14, color: personColor[p] },
-    })),
-  };
-
   return `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -489,19 +468,69 @@ ${cohesionTable}
 ${tallyTable}
 
 <script>
-  const dark = {
-    paper_bgcolor: "#1a1a1a",
-    plot_bgcolor: "#1a1a1a",
-    font: { color: "#ddd" },
-    xaxis: { gridcolor: "#2a2a2a", title: "Date" },
-    yaxis: { gridcolor: "#2a2a2a", title: "Hour of day", range: [0, 24], dtick: 4 },
-    legend: { bgcolor: "rgba(0,0,0,0)" },
-    margin: { t: 30, l: 60, r: 30, b: 60 },
-  };
+  const people = ${JSON.stringify(people)};
+  const personColor = ${JSON.stringify(personColor)};
+  const heatmapTraces = ${JSON.stringify(heatmapTraces)};
 
-  Plotly.newPlot("chart-last", ${JSON.stringify(lastHourTraces)}, { ...dark, height: 450 }, { responsive: true, displaylogo: false });
-  Plotly.newPlot("chart-per-exercise", ${JSON.stringify(perExerciseTraces)}, { ...dark, height: 500 }, { responsive: true, displaylogo: false });
-  Plotly.newPlot("chart-heatmap", ${JSON.stringify(heatmapTraces)}, ${JSON.stringify(heatmapLayout)}, { responsive: true, displaylogo: false });
+  const isMobile = () => window.innerWidth < 700;
+
+  function darkBase() {
+    const m = isMobile();
+    return {
+      paper_bgcolor: "#1a1a1a",
+      plot_bgcolor: "#1a1a1a",
+      font: { color: "#ddd", size: m ? 10 : 12 },
+      xaxis: { gridcolor: "#2a2a2a", title: m ? "" : "Date", tickfont: { size: m ? 9 : 11 } },
+      yaxis: { gridcolor: "#2a2a2a", title: m ? "" : "Hour of day", range: [0, 24], dtick: m ? 6 : 4, tickfont: { size: m ? 9 : 11 } },
+      legend: {
+        bgcolor: "rgba(0,0,0,0)",
+        orientation: "h",
+        x: 0, xanchor: "left",
+        y: -0.15, yanchor: "top",
+        font: { size: m ? 10 : 12 },
+      },
+      margin: { t: 20, l: m ? 38 : 55, r: m ? 10 : 25, b: m ? 80 : 70 },
+    };
+  }
+
+  function buildHeatmapLayout() {
+    const m = isMobile();
+    return {
+      grid: { rows: people.length, columns: 1, pattern: "independent" },
+      height: (m ? 140 : 180) * people.length,
+      margin: { t: 24, l: m ? 38 : 55, r: m ? 10 : 30, b: 30 },
+      paper_bgcolor: "#1a1a1a",
+      plot_bgcolor: "#1a1a1a",
+      font: { color: "#ddd", size: m ? 10 : 12 },
+      annotations: people.map((p, i) => ({
+        text: p,
+        xref: "paper", yref: "paper",
+        x: 0, xanchor: "left",
+        y: 1 - i / people.length, yanchor: "top",
+        showarrow: false,
+        font: { size: m ? 12 : 14, color: personColor[p] },
+      })),
+    };
+  }
+
+  function chartHeights() {
+    const m = isMobile();
+    return { last: m ? 360 : 450, perEx: m ? 420 : 500 };
+  }
+
+  function renderCharts() {
+    const h = chartHeights();
+    Plotly.react("chart-last", ${JSON.stringify(lastHourTraces)}, { ...darkBase(), height: h.last }, { responsive: true, displaylogo: false });
+    Plotly.react("chart-per-exercise", ${JSON.stringify(perExerciseTraces)}, { ...darkBase(), height: h.perEx }, { responsive: true, displaylogo: false });
+    Plotly.react("chart-heatmap", heatmapTraces, buildHeatmapLayout(), { responsive: true, displaylogo: false });
+  }
+
+  renderCharts();
+  let resizeTimer;
+  window.addEventListener("resize", () => {
+    clearTimeout(resizeTimer);
+    resizeTimer = setTimeout(renderCharts, 200);
+  });
 </script>
 
 </body>
