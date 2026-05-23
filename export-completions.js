@@ -30,8 +30,10 @@ for (const c of docs) {
 const exercises = ["squats", "pushups", "plank"];
 const allPersons = participantsSnap.docs.map((d) => d.id).sort();
 const sickDaysByPerson = {};
+const restDaysByPerson = {};
 for (const d of participantsSnap.docs) {
   sickDaysByPerson[d.id] = new Set(d.data().sickDays ?? []);
+  restDaysByPerson[d.id] = new Set(d.data().restDays ?? []);
 }
 const startDate = docs.map((d) => d.date).sort()[0];
 const allDates = [];
@@ -49,7 +51,7 @@ function isoWeek(dateStr) {
   return `${d.getUTCFullYear()}-W${String(weekNum).padStart(2, "0")}`;
 }
 
-const rows = [["date", "day_of_week", "week", "person", "exercise", "completed", "completed_at", "completed_hour", "sick_day"]];
+const rows = [["date", "day_of_week", "week", "person", "exercise", "completed", "completed_at", "completed_hour", "sick_day", "rest_day"]];
 
 for (const date of allDates) {
   const dow = DAY_NAMES[new Date(date).getUTCDay()];
@@ -61,7 +63,8 @@ for (const date of allDates) {
       const completedAt = rec?.completedAt ?? "";
       const completedHour = completedAt ? parseInt(completedAt.slice(11, 13)) : "";
       const sickDay = sickDaysByPerson[person]?.has(date) ?? false;
-      rows.push([date, dow, week, person, exercise, completed, completedAt, completedHour, sickDay]);
+      const restDay = restDaysByPerson[person]?.has(date) ?? false;
+      rows.push([date, dow, week, person, exercise, completed, completedAt, completedHour, sickDay, restDay]);
     }
   }
 }

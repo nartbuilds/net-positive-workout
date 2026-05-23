@@ -1264,6 +1264,11 @@ body.group-glory-day #history-container {
   border-color: rgba(255, 209, 102, 0.25);
 }
 
+.gsm-tile.rest {
+  background: rgba(77, 171, 247, 0.06);
+  border-color: rgba(77, 171, 247, 0.3);
+}
+
 .gsm-ring {
   display: block;
 }
@@ -1302,6 +1307,10 @@ body.group-glory-day #history-container {
 
 .gsm-status.sick {
   color: var(--warning);
+}
+
+.gsm-status.rest {
+  color: #4dabf7;
 }
 
 .gsm-dots {
@@ -1512,12 +1521,19 @@ body.group-glory-day #history-container {
   margin-top: 4px;
 }
 
-/* Sick day toggle button */
-.sick-day-btn {
+/* Sick / rest day toggle buttons */
+.off-day-btns {
+  display: flex;
+  gap: 6px;
+  margin-top: 6px;
+  flex-wrap: wrap;
+}
+
+.sick-day-btn,
+.rest-day-btn {
   display: inline-flex;
   align-items: center;
   gap: 4px;
-  margin-top: 6px;
   padding: 3px 10px;
   border-radius: 100px;
   font-size: 0.72rem;
@@ -1529,14 +1545,30 @@ body.group-glory-day #history-container {
   transition: var(--transition);
 }
 
+.sick-day-btn:disabled,
+.rest-day-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
 .sick-day-btn.active {
   background: rgba(255, 209, 102, 0.15);
   border-color: rgba(255, 209, 102, 0.4);
   color: var(--warning);
 }
 
+.rest-day-btn.active {
+  background: rgba(77, 171, 247, 0.18);
+  border-color: rgba(77, 171, 247, 0.45);
+  color: #4dabf7;
+}
+
 .workout-card.sick-today:not(.completed-all) {
   border-color: rgba(255, 209, 102, 0.35);
+}
+
+.workout-card.rest-today:not(.completed-all) {
+  border-color: rgba(77, 171, 247, 0.4);
 }
 
 /* Progress Bar */
@@ -1681,6 +1713,11 @@ body.group-glory-day #history-container {
   color: var(--warning);
 }
 
+.history-ex-badge.rest {
+  background: rgba(77, 171, 247, 0.15);
+  color: #4dabf7;
+}
+
 .history-fine-day {
   font-size: 0.78rem;
   font-weight: 800;
@@ -1698,8 +1735,18 @@ body.group-glory-day #history-container {
   flex-shrink: 0;
 }
 
+.history-fine-day.rest-label {
+  color: #4dabf7;
+  flex-shrink: 0;
+}
+
 .history-day.sick-day-row {
   border-left: 2px solid rgba(255, 209, 102, 0.4);
+  padding-left: 8px;
+}
+
+.history-day.rest-day-row {
+  border-left: 2px solid rgba(77, 171, 247, 0.45);
   padding-left: 8px;
 }
 

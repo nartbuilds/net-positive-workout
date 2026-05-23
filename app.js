@@ -54,8 +54,8 @@ const CONFIG = {
     },
     {
       id: "plank",
-      name: "Plank",
-      emoji: "🧘",
+      name: "Pelvic Floor",
+      emoji: "🤰",
       target: "5 minutes",
       targetCount: 5,
       unit: "min",
@@ -139,8 +139,11 @@ let state = {
   cache: {},
   groupCelebratedToday: false,
   chartRotated: (() => {
-    try { return localStorage.getItem("np_chart_rotated") === "1"; }
-    catch { return false; }
+    try {
+      return localStorage.getItem("np_chart_rotated") === "1";
+    } catch {
+      return false;
+    }
   })(),
 };
 
@@ -227,8 +230,8 @@ function calcStreak(name) {
       const dateStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
       if (isWorkoutComplete(name, dateStr)) {
         streak++;
-      } else if (isSickDay(name, dateStr)) {
-        // sick day: no increment, no reset
+      } else if (isOffDay(name, dateStr)) {
+        // sick or rest day: no increment, no reset
       } else {
         streak = 0;
       }
@@ -237,7 +240,7 @@ function calcStreak(name) {
   }
 
   if (isWorkoutComplete(name, participantToday)) return streak + 1;
-  if (isSickDay(name, participantToday)) return streak; // paused: no increment, no reset
+  if (isOffDay(name, participantToday)) return streak; // paused: no increment, no reset
   return streak;
 }
 
@@ -276,7 +279,7 @@ function avatarHTML(participant, className) {
   return `<div class="${className}" style="background:${color};">${getInitials(participant.name)}</div>`;
 }
 
-function progressRingHTML(pct, color, sick, participant) {
+function progressRingHTML(pct, color, offDay, participant) {
   const size = 64;
   const stroke = 5;
   const r = (size - stroke) / 2;
@@ -292,7 +295,7 @@ function progressRingHTML(pct, color, sick, participant) {
     <svg class="gsm-ring" width="${size}" height="${size}" viewBox="0 0 ${size} ${size}">
       <circle cx="${size / 2}" cy="${size / 2}" r="${r}" fill="none" stroke="rgba(255,255,255,0.08)" stroke-width="${stroke}"/>
       <circle class="gsm-ring-fg" cx="${size / 2}" cy="${size / 2}" r="${r}" fill="none"
-        stroke="${sick ? "var(--warning)" : color}" stroke-width="${stroke}" stroke-linecap="round"
+        stroke="${offDay ? "var(--warning)" : color}" stroke-width="${stroke}" stroke-linecap="round"
         stroke-dasharray="${c.toFixed(2)}" stroke-dashoffset="${offset.toFixed(2)}"
         transform="rotate(-90 ${size / 2} ${size / 2})"/>
       ${inner}
@@ -504,7 +507,7 @@ function calcFinesForPerson(name, dates) {
   let total = 0;
   for (const date of dates) {
     if (date === state.todayStr) continue;
-    if (isSickDay(name, date)) continue;
+    if (isOffDay(name, date)) continue;
     const done = getCompletedExercisesForDay(name, date);
     const missed = CONFIG.EXERCISES.filter(
       (ex) => !done.includes(ex.id),
@@ -567,6 +570,39 @@ function isSickDay(name, date) {
   return Array.isArray(p?.sickDays) && p.sickDays.includes(date);
 }
 
+function isRestDay(name, date) {
+  const p = state.participants.find((p) => p.name === name);
+  return Array.isArray(p?.restDays) && p.restDays.includes(date);
+}
+
+// "Off day" = sick OR rest. Both exempt from fines and streak changes.
+function isOffDay(name, date) {
+  return isSickDay(name, date) || isRestDay(name, date);
+}
+
+// Monday-anchored week. dateStr = "YYYY-MM-DD". Returns the Monday's date string.
+function getWeekStartLocal(dateStr) {
+  const d = new Date(dateStr + "T12:00:00"); // noon avoids DST edges
+  const day = d.getDay(); // 0=Sun..6=Sat
+  const diff = day === 0 ? -6 : 1 - day;
+  d.setDate(d.getDate() + diff);
+  return d.toISOString().slice(0, 10);
+}
+
+function restDaysUsedThisWeek(name, referenceDate) {
+  const p = state.participants.find((p) => p.name === name);
+  if (!Array.isArray(p?.restDays)) return 0;
+  const weekStart = getWeekStartLocal(referenceDate);
+  const weekEnd = new Date(weekStart + "T12:00:00");
+  weekEnd.setDate(weekEnd.getDate() + 6);
+  const weekEndStr = weekEnd.toISOString().slice(0, 10);
+  return p.restDays.filter((d) => d >= weekStart && d <= weekEndStr).length;
+}
+
+function restDaysRemainingThisWeek(name, referenceDate) {
+  return Math.max(0, 1 - restDaysUsedThisWeek(name, referenceDate));
+}
+
 async function toggleSickDay(name, date) {
   const participant = state.participants.find((p) => p.name === name);
   if (!participant) return;
@@ -594,6 +630,42 @@ async function toggleSickDay(name, date) {
     // Roll back
     participant.sickDays = prev;
     if (state.currentUser?.name === name) state.currentUser.sickDays = prev;
+    showToast("Failed to update: " + err.message, "error");
+  }
+}
+
+async function toggleRestDay(name, date) {
+  const participant = state.participants.find((p) => p.name === name);
+  if (!participant) return;
+  const prev = Array.isArray(participant.restDays)
+    ? [...participant.restDays]
+    : [];
+  const alreadyRest = prev.includes(date);
+
+  // Enforce 1 per calendar week (Mon–Sun) — but always allow toggling off.
+  if (!alreadyRest && restDaysRemainingThisWeek(name, date) <= 0) {
+    showToast("Already used your rest day this week", "error");
+    return;
+  }
+
+  const next = alreadyRest ? prev.filter((d) => d !== date) : [...prev, date];
+
+  participant.restDays = next;
+  if (state.currentUser?.name === name) state.currentUser.restDays = next;
+
+  try {
+    await updateDoc(doc(db, "participants", name), { restDays: next });
+    rebuildCache();
+    renderCurrentView();
+    showToast(
+      alreadyRest
+        ? "Rest day removed"
+        : "Rest day marked 🏖️ — no fines, streak held",
+      "info",
+    );
+  } catch (err) {
+    participant.restDays = prev;
+    if (state.currentUser?.name === name) state.currentUser.restDays = prev;
     showToast("Failed to update: " + err.message, "error");
   }
 }
@@ -721,11 +793,12 @@ async function advanceFineCheckpoints() {
         const tLabel = getWorkoutCompletionTime(p.name, date);
         const tMins = parseTimeLabelToMinutes(tLabel);
         if (tMins != null) {
-          if (earliestMins == null || tMins < earliestMins) earliestMins = tMins;
+          if (earliestMins == null || tMins < earliestMins)
+            earliestMins = tMins;
           if (latestMins == null || tMins > latestMins) latestMins = tMins;
         }
-      } else if (isSickDay(p.name, date)) {
-        // sick day: no fine, streak pauses (no increment, no reset)
+      } else if (isOffDay(p.name, date)) {
+        // sick or rest day: no fine, streak pauses (no increment, no reset)
       } else {
         const done = getCompletedExercisesForDay(p.name, date);
         const missed = CONFIG.EXERCISES.filter(
@@ -827,11 +900,12 @@ async function syncAggregates() {
             getWorkoutCompletionTime(p.name, date),
           );
           if (tMins != null) {
-            if (earliestMins == null || tMins < earliestMins) earliestMins = tMins;
+            if (earliestMins == null || tMins < earliestMins)
+              earliestMins = tMins;
             if (latestMins == null || tMins > latestMins) latestMins = tMins;
           }
-        } else if (isSickDay(p.name, date)) {
-          // sick day: streak pauses (no increment, no reset)
+        } else if (isOffDay(p.name, date)) {
+          // sick or rest day: streak pauses (no increment, no reset)
         } else {
           currentStreak = 0;
         }
@@ -1284,13 +1358,19 @@ function renderTodayView() {
     );
     const allDone = isWorkoutComplete(participant.name, state.todayStr);
     const sickToday = isSickDay(participant.name, state.todayStr);
+    const restToday = isRestDay(participant.name, state.todayStr);
+    const offToday = sickToday || restToday;
+    const restRemaining = restDaysRemainingThisWeek(
+      participant.name,
+      state.todayStr,
+    );
     const color = getParticipantColor(participant);
     const initials = getInitials(participant.name);
     const streak =
       state.cache[participant.name]?.streak ?? calcStreak(participant.name);
 
     const card = document.createElement("div");
-    card.className = `workout-card${isMe ? " is-me" : ""}${allDone ? " completed-all" : ""}${sickToday && !allDone ? " sick-today" : ""}`;
+    card.className = `workout-card${isMe ? " is-me" : ""}${allDone ? " completed-all" : ""}${offToday && !allDone ? (restToday ? " rest-today" : " sick-today") : ""}`;
     card.id = `card-${participant.name.replace(/\s+/g, "-")}`;
     const cardAvatarHTML = avatarHTML(participant, "card-avatar");
 
@@ -1300,14 +1380,19 @@ function renderTodayView() {
       if (isMe) {
         countNow = getCount(participant.name, ex.id, state.todayStr);
         if (done && countNow < ex.targetCount) {
-          setCountLocal(participant.name, ex.id, state.todayStr, ex.targetCount);
+          setCountLocal(
+            participant.name,
+            ex.id,
+            state.todayStr,
+            ex.targetCount,
+          );
           countNow = ex.targetCount;
         } else if (!done && countNow >= ex.targetCount) {
           setCountLocal(participant.name, ex.id, state.todayStr, 0);
           countNow = 0;
         }
       }
-      const counterDisabled = !isMe || sickToday ? "disabled" : "";
+      const counterDisabled = !isMe || offToday ? "disabled" : "";
       const inc = getIncrement(ex.id);
       const counterHTML = isMe
         ? `
@@ -1332,9 +1417,11 @@ function renderTodayView() {
       : null;
     const statusText = allDone
       ? `🎉 All done!${completionTime ? ` · ${completionTime}` : ""}`
-      : sickToday
-        ? "🤒 Sick day — no fines"
-        : `${completedToday.length}/${CONFIG.EXERCISES.length} completed`;
+      : restToday
+        ? "🏖️ Rest day — no fines"
+        : sickToday
+          ? "🤒 Sick day — no fines"
+          : `${completedToday.length}/${CONFIG.EXERCISES.length} completed`;
 
     card.innerHTML = `
       <div class="card-header">
@@ -1343,7 +1430,15 @@ function renderTodayView() {
           <div class="card-name">${participant.name}</div>
           <div class="card-status">${statusText}</div>
           ${streak > 0 ? `<div class="streak-pill">🔥 ${streak}-day streak</div>` : ""}
-          ${isMe ? `<button class="sick-day-btn${sickToday ? " active" : ""}" data-person="${participant.name}"${allDone ? " disabled" : ""}>${sickToday ? "🤒 Sick Day" : "🤒 Sick?"}</button>` : ""}
+          ${
+            isMe
+              ? `
+            <div class="off-day-btns">
+              <button class="sick-day-btn${sickToday ? " active" : ""}" data-person="${participant.name}"${allDone || restToday ? " disabled" : ""}>${sickToday ? "🤒 Sick Day" : "🤒 Sick?"}</button>
+              <button class="rest-day-btn${restToday ? " active" : ""}" data-person="${participant.name}"${allDone || sickToday || (!restToday && restRemaining === 0) ? " disabled" : ""}>${restToday ? "🏖️ Rest Day" : `🏖️ Rest (${restRemaining} left)`}</button>
+            </div>`
+              : ""
+          }
         </div>
       </div>
       <div class="exercise-list">${exercisesHTML}</div>
@@ -1383,6 +1478,12 @@ function renderTodayView() {
           toggleSickDay(participant.name, state.todayStr),
         );
       }
+      const restBtn = card.querySelector(".rest-day-btn");
+      if (restBtn) {
+        restBtn.addEventListener("click", () =>
+          toggleRestDay(participant.name, state.todayStr),
+        );
+      }
     }
 
     container.appendChild(card);
@@ -1410,9 +1511,11 @@ function renderTodayView() {
         const color = getParticipantColor(p);
         const done = getCompletedExercisesForDay(p.name, pToday);
         const isOtherSick = isSickDay(p.name, pToday);
+        const isOtherRest = isRestDay(p.name, pToday);
+        const isOtherOff = isOtherSick || isOtherRest;
         const isOtherDone = isWorkoutComplete(p.name, pToday);
         const total = CONFIG.EXERCISES.length;
-        const pct = isOtherSick && !isOtherDone ? 0 : done.length / total;
+        const pct = isOtherOff && !isOtherDone ? 0 : done.length / total;
         const completionTime = getWorkoutCompletionTime(p.name, pToday);
         const dots = CONFIG.EXERCISES.map((ex) => {
           const isDone = done.includes(ex.id);
@@ -1420,12 +1523,15 @@ function renderTodayView() {
         }).join("");
         const statusLine = isOtherDone
           ? `<span class="gsm-status done">${completionTime ?? "✓"}</span>`
-          : isOtherSick
-            ? `<span class="gsm-status sick">🤒 sick day</span>`
-            : `<span class="gsm-status">${done.length}/${total}</span>`;
+          : isOtherRest
+            ? `<span class="gsm-status rest">🏖️ Rest Day</span>`
+            : isOtherSick
+              ? `<span class="gsm-status sick">🤒 Sick Day</span>`
+              : `<span class="gsm-status">${done.length}/${total}</span>`;
+        const offClass = isOtherOff && !isOtherDone ? (isOtherRest ? " rest" : " sick") : "";
         return `
-        <div class="gsm-tile${isOtherDone ? " done" : ""}${isOtherSick && !isOtherDone ? " sick" : ""}" style="--tile-color:${color}">
-          ${progressRingHTML(pct, color, isOtherSick && !isOtherDone, p)}
+        <div class="gsm-tile${isOtherDone ? " done" : ""}${offClass}" style="--tile-color:${color}">
+          ${progressRingHTML(pct, color, isOtherOff && !isOtherDone, p)}
           <div class="gsm-tile-name">${p.name}</div>
           ${statusLine}
           <div class="gsm-dots">${dots}</div>
@@ -1450,7 +1556,10 @@ function renderTodayView() {
     btn.addEventListener("click", () => {
       state.chartRotated = !state.chartRotated;
       try {
-        localStorage.setItem("np_chart_rotated", state.chartRotated ? "1" : "0");
+        localStorage.setItem(
+          "np_chart_rotated",
+          state.chartRotated ? "1" : "0",
+        );
       } catch {}
       const wrap = container.querySelector(".workout-times-chart");
       if (wrap) wrap.outerHTML = renderWorkoutTimesChart();
@@ -1652,10 +1761,13 @@ function editIncrement(btn) {
     const swapToHappy = () => img?.replaceWith(happyImg);
     if (happyImg.decode) happyImg.decode().then(swapToHappy).catch(swapToHappy);
     else happyImg.onload = swapToHappy;
-    liane.style.animation = "liane-happy-bounce 0.5s cubic-bezier(0.34,1.56,0.64,1) forwards";
+    liane.style.animation =
+      "liane-happy-bounce 0.5s cubic-bezier(0.34,1.56,0.64,1) forwards";
     setTimeout(() => {
       liane.style.animation = "liane-fade-out 0.4s ease forwards";
-      liane.addEventListener("animationend", () => liane.remove(), { once: true });
+      liane.addEventListener("animationend", () => liane.remove(), {
+        once: true,
+      });
     }, 1000);
   };
   const cancel = () => {
@@ -1817,7 +1929,8 @@ function handleCountChange(personName, exerciseId, delta) {
   setCountLocal(personName, exerciseId, state.todayStr, newCount);
   if (idx >= 0) {
     state.completions[idx].completed = nowCompleted;
-    if (nowCompleted) state.completions[idx].completedAt = localISOString(new Date());
+    if (nowCompleted)
+      state.completions[idx].completedAt = localISOString(new Date());
     else if (!nowCompleted) state.completions[idx].completedAt = null;
   } else {
     state.completions.push({
@@ -2035,7 +2148,8 @@ function renderLeaderboard() {
     if (a.streak !== b.streak) return b.streak - a.streak;
     // Tiebreak: prefer person whose most recent completed workout is more
     // recent; within the same date, earlier local finish time wins.
-    const aw = a.lastWorkout, bw = b.lastWorkout;
+    const aw = a.lastWorkout,
+      bw = b.lastWorkout;
     if (!aw && !bw) return 0;
     if (!aw) return 1;
     if (!bw) return -1;
@@ -2382,19 +2496,22 @@ async function renderHistory() {
       for (const date of monthDays) {
         const isToday = date === participantToday;
         const isSick = isSickDay(participant.name, date);
+        const isRest = isRestDay(participant.name, date);
+        const isOff = isSick || isRest;
         const allComplete = isWorkoutComplete(participant.name, date);
         const done = getCompletedExercisesForDay(participant.name, date);
+        const offBadgeClass = isRest ? "rest" : "sick";
         const exBadges = CONFIG.EXERCISES.map((ex) => {
           const isDone = done.includes(ex.id);
-          if (isSick && !isDone)
-            return `<span class="history-ex-badge sick">${ex.emoji}</span>`;
+          if (isOff && !isDone)
+            return `<span class="history-ex-badge ${offBadgeClass}">${ex.emoji}</span>`;
           if (isToday && !isDone)
             return `<span class="history-ex-badge pending">${ex.emoji}</span>`;
           return `<span class="history-ex-badge ${isDone ? "done" : "missed"}">${ex.emoji}</span>`;
         }).join("");
 
         let dayFine = 0;
-        if (!isToday && !isSick) {
+        if (!isToday && !isOff) {
           const missed = CONFIG.EXERCISES.filter(
             (ex) => !done.includes(ex.id),
           ).length;
@@ -2404,13 +2521,16 @@ async function renderHistory() {
               : missed * CONFIG.FINE_PER_EXERCISE;
         }
 
+        const offEmoji = isRest ? "🏖️" : "🤒";
+        const offRowClass = isRest ? "rest-day-row" : "sick-day-row";
+        const offLabelClass = isRest ? "rest-label" : "sick-label";
         daysHTML += `
-          <div class="history-day${isSick && !allComplete ? " sick-day-row" : ""}">
+          <div class="history-day${isOff && !allComplete ? " " + offRowClass : ""}">
             <div class="history-date">${fmtDay(date)}</div>
             <div class="history-exercises">${exBadges}</div>
             ${
-              isSick && !allComplete
-                ? `<div class="history-fine-day sick-label">🤒</div>`
+              isOff && !allComplete
+                ? `<div class="history-fine-day ${offLabelClass}">${offEmoji}</div>`
                 : isToday
                   ? `<div class="history-fine-day zero" style="font-size:0.7rem;">today</div>`
                   : `<div class="history-fine-day ${dayFine > 0 ? "" : "zero"}">${dayFine > 0 ? `-$${dayFine}` : "$0"}</div>`
@@ -3472,22 +3592,20 @@ function bindEvents() {
       );
     });
 
-  document
-    .getElementById("btn-toggle-glory")
-    .addEventListener("click", () => {
-      const btn = document.getElementById("btn-toggle-glory");
-      const active = document.body.classList.contains("group-glory-day");
-      if (active) {
-        document.getElementById("app").classList.remove("group-glory-day");
-        document.body.classList.remove("group-glory-day");
-        document.querySelector(".glory-today-alan")?.remove();
-        document.getElementById("glory-alan-float")?.remove();
-        btn.textContent = "Preview Glory Day";
-      } else {
-        applyGloryAmbient();
-        btn.textContent = "Disable Glory Day";
-      }
-    });
+  document.getElementById("btn-toggle-glory").addEventListener("click", () => {
+    const btn = document.getElementById("btn-toggle-glory");
+    const active = document.body.classList.contains("group-glory-day");
+    if (active) {
+      document.getElementById("app").classList.remove("group-glory-day");
+      document.body.classList.remove("group-glory-day");
+      document.querySelector(".glory-today-alan")?.remove();
+      document.getElementById("glory-alan-float")?.remove();
+      btn.textContent = "Preview Glory Day";
+    } else {
+      applyGloryAmbient();
+      btn.textContent = "Disable Glory Day";
+    }
+  });
 
   document
     .getElementById("btn-sync-aggregates")
