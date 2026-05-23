@@ -297,7 +297,7 @@ function renderHtml() {
   const varianceTables = people.map((p) => {
     const allHs = personDays[p].map((d) => d.last);
     const rows = [
-      tableRow(["Week", "Days", "Avg last-exercise", "Stddev (hrs)"], true),
+      tableRow(["Week", "Days", "Avg completed workout time", "Stddev (hrs)"], true),
       ...variance[p].map((w) => tableRow([w.week, w.n, fmtHour(w.mean), w.stddev.toFixed(2)])),
       tableRow([`<b>Overall</b>`, `<b>${allHs.length}</b>`, `<b>${fmtHour(mean(allHs))}</b>`, `<b>${stddev(allHs).toFixed(2)}</b>`]),
     ].join("");
@@ -364,7 +364,7 @@ function renderHtml() {
   const gapTables = people.map((p) => {
     const allGaps = personDays[p].map((d) => d.last - d.first);
     const rows = [
-      tableRow(["Week", "Days", "Avg gap (hrs)", "Median gap", "% single-block", "% all-day"], true),
+      tableRow(["Week", "Days", "Avg gap (hrs)", "Median gap", "% single-block (≤30m)", "% all-day (≥6h)"], true),
       ...gap[p].map((w) =>
         tableRow([w.week, w.n, w.avgGap.toFixed(2), w.medianGap.toFixed(2), w.sameBlock.toFixed(0) + "%", w.allDay.toFixed(0) + "%"])
       ),
@@ -428,7 +428,8 @@ function renderHtml() {
 <h1>60-Day Recap Report</h1>
 <p>Generated ${new Date().toISOString().slice(0, 10)} · Participants: ${people.join(", ")} · Days analyzed: ${groupLast.length}</p>
 
-<div class="tip"><b>Tip:</b> click any name in a chart legend to hide it. Double-click to isolate. Drag to zoom. Double-click empty space to reset.</div>
+<div class="tip"><b>How to read this:</b> charts at the top show *when* each person worked out across the challenge. The tables below break down five aspects of habit formation — consistency, compactness, order, weekend drift, and group cohesion — with a one-line summary per person.</div>
+<div class="tip"><b>Chart tip:</b> click any name in a legend to hide it. Double-click to isolate. Drag to zoom. Double-click empty space to reset.</div>
 
 <h2>Last exercise of the day — per person, over time</h2>
 <p class="hint">Flat line = locked-in routine. Trending down = moving earlier in the day.</p>
@@ -443,23 +444,23 @@ function renderHtml() {
 <div id="chart-heatmap" class="chart"></div>
 
 <h2>1. Completion-hour consistency</h2>
-<p class="hint">Lower stddev = more automatic / habit-like.</p>
+<p class="hint">Stddev = how much your finish time varies day-to-day. <b>&lt;1h = locked in, 1–2h = mostly consistent, &gt;2h = scattered.</b> Shrinking over weeks means the workout is becoming an unconscious routine.</p>
 ${varianceTables}
 
 <h2>2. Session compactness — gap between first and last exercise</h2>
-<p class="hint">Small gap = one-block workout. Large gap = spread across the day.</p>
+<p class="hint">Time between your first and last exercise of the day. <b>≤30 min = one sitting, ≥6h = scattered across the day.</b> Tighter sessions usually mean less mental friction.</p>
 ${gapTables}
 
 <h2>3. Exercise-order stability</h2>
-<p class="hint">Fixed order = workout has become a script, less decision-making.</p>
+<p class="hint">Same order every day = less decision fatigue. <b>&gt;80% same order = rock-solid script. &lt;50% = no fixed routine.</b></p>
 ${orderTables}
 
 <h2>4. Weekend drift</h2>
-<p class="hint">Weekend hour minus weekday hour. Shrinking toward 0 = identity habit, not work-schedule habit.</p>
+<p class="hint">Do weekends mess with your timing? <b>Near 0 = same 7 days/week. Positive = slips later on weekends. Negative = actually earlier (rare).</b></p>
 ${driftTables}
 
 <h2>5. Group cohesion — when's the last person done?</h2>
-<p class="hint">The latest finisher each day. Tightening spread = group pulling itself together.</p>
+<p class="hint">When does the <i>last</i> person finish each day? Tighter first→last spread = group is in sync. Shrinking spread over weeks = peer pressure working.</p>
 ${cohesionTable}
 
 <h3>Finisher tally — pacesetter vs anchor</h3>
