@@ -273,7 +273,6 @@ function renderHtml() {
         y: points.map((c) => c.fhour),
         line: { color: personColor[p], width: 1.5, dash: ex === "squats" ? "solid" : ex === "pushups" ? "dash" : "dot" },
         marker: { size: 4 },
-        visible: ex === "squats" ? true : "legendonly",
         hovertemplate: `<b>${p} · ${ex}</b><br>%{x}<br>%{y:.2f}h<extra></extra>`,
       });
     }
@@ -436,7 +435,7 @@ function renderHtml() {
 <div id="chart-last" class="chart"></div>
 
 <h2>Per-exercise completion times</h2>
-<p class="hint">Each (person × exercise) is its own trace. Click legend to toggle. Line style: <b>solid</b>=squats, <b>dashed</b>=pushups, <b>dotted</b>=plank. (Only squats shown by default — click others on.)</p>
+<p class="hint">Each (person × exercise) is its own trace. Click legend to toggle. Line style: <b>solid</b>=squats, <b>dashed</b>=pushups, <b>dotted</b>=plank.</p>
 <div id="chart-per-exercise" class="chart"></div>
 
 <h2>Activity heatmap — day-of-week × hour-of-day</h2>
@@ -521,11 +520,14 @@ ${tallyTable}
   function renderCharts() {
     const h = chartHeights();
     Plotly.react("chart-last", ${JSON.stringify(lastHourTraces)}, { ...darkBase(), height: h.last }, { responsive: true, displaylogo: false });
-    Plotly.react("chart-per-exercise", ${JSON.stringify(perExerciseTraces)}, { ...darkBase(), height: h.perEx }, { responsive: true, displaylogo: false });
+    const perExLayout = { ...darkBase(), height: h.perEx };
+    perExLayout.legend = { ...perExLayout.legend, groupclick: "toggleitem" };
+    Plotly.react("chart-per-exercise", ${JSON.stringify(perExerciseTraces)}, perExLayout, { responsive: true, displaylogo: false });
     Plotly.react("chart-heatmap", heatmapTraces, buildHeatmapLayout(), { responsive: true, displaylogo: false });
   }
 
   renderCharts();
+
   let resizeTimer;
   window.addEventListener("resize", () => {
     clearTimeout(resizeTimer);
