@@ -384,6 +384,30 @@ a {
   color: var(--text-primary);
 }
 
+.btn-recap {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: 100%;
+  background: linear-gradient(135deg, rgba(0, 217, 163, 0.15), rgba(77, 171, 247, 0.12));
+  border: 1px solid rgba(0, 217, 163, 0.35);
+  color: var(--success);
+  border-radius: var(--radius-sm);
+  padding: 12px 16px;
+  font-size: 0.9rem;
+  font-weight: 600;
+  text-decoration: none;
+  margin: 12px 0 16px;
+  transition: var(--transition);
+}
+
+.btn-recap:hover {
+  border-color: var(--success);
+  background: linear-gradient(135deg, rgba(0, 217, 163, 0.22), rgba(77, 171, 247, 0.18));
+  transform: translateY(-1px);
+}
+
 .btn-danger {
   background: rgba(255, 77, 109, 0.15);
   border: 1px solid rgba(255, 77, 109, 0.3);

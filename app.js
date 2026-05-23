@@ -759,6 +759,26 @@ async function advanceFineCheckpoints() {
   rebuildCache();
 }
 
+async function openLatestRecap() {
+  const btn = document.getElementById("btn-latest-recap");
+  const original = btn.textContent;
+  btn.disabled = true;
+  btn.textContent = "Loading...";
+  try {
+    const res = await fetch("/reports/manifest.json", { cache: "no-store" });
+    if (!res.ok) throw new Error("manifest fetch failed");
+    const { latest } = await res.json();
+    if (!latest) throw new Error("no reports");
+    window.open(`/reports/${latest}`, "_blank", "noopener");
+  } catch (e) {
+    alert("No recap report available yet.");
+    console.error(e);
+  } finally {
+    btn.disabled = false;
+    btn.textContent = original;
+  }
+}
+
 async function syncAggregates() {
   const btn = document.getElementById("btn-sync-aggregates");
   btn.disabled = true;
@@ -3472,6 +3492,10 @@ function bindEvents() {
   document
     .getElementById("btn-sync-aggregates")
     .addEventListener("click", syncAggregates);
+
+  document
+    .getElementById("btn-latest-recap")
+    .addEventListener("click", openLatestRecap);
 
   document
     .getElementById("btn-save-start-date")
