@@ -554,6 +554,21 @@ const reports = readdirSync(reportsDir)
 const manifestPath = `${reportsDir}/manifest.json`;
 writeFileSync(manifestPath, JSON.stringify({ reports, latest: reports[0] }, null, 2));
 
+// Stable redirect page → newest dated report. Plain <meta refresh> so the
+// button can be a normal anchor link (iOS Safari popup-blocks window.open
+// when it follows an awaited fetch).
+const latestRedirectPath = `${reportsDir}/latest.html`;
+writeFileSync(
+  latestRedirectPath,
+  `<!doctype html>
+<meta charset="utf-8">
+<title>Latest Recap Report</title>
+<meta http-equiv="refresh" content="0;url=${reports[0]}">
+<link rel="canonical" href="${reports[0]}">
+<p>Loading latest recap… <a href="${reports[0]}">click here if it doesn't load</a>.</p>
+`
+);
+
 console.log(`Wrote:`);
 console.log(`  ${htmlPath}`);
 console.log(`  ${manifestPath}  ← app reads this to find the latest`);
