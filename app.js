@@ -762,9 +762,16 @@ function getTodayStrForOffset(offsetMinutes) {
 
 async function advanceFineCheckpoints() {
   if (!db) return;
-  // Each participant's fines are advanced using their own stored timezone offset,
-  // so no device can prematurely fine someone in a different timezone.
-  for (const p of state.participants) {
+  // Only advance the logged-in participant's own aggregates. Other devices may
+  // have offline-queued completions that haven't reached Firestore yet; if a
+  // different user's device runs the advance against that stale view it will
+  // wrongly fine them, and the bad state is sticky once finesThrough moves past
+  // the day. Each participant is the source of truth for their own completions.
+  const me = state.currentUser
+    ? state.participants.find((p) => p.name === state.currentUser.name)
+    : null;
+  if (!me) return;
+  for (const p of [me]) {
     const yesterday = getYesterdayForOffset(p.timezoneOffset ?? -480);
     const through = p.finesThrough || p.joinedDate || yesterday;
     if (through >= yesterday) continue; // already up to date
