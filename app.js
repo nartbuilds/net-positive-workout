@@ -2133,7 +2133,13 @@ function renderLeaderboard() {
   data.sort((a, b) => {
     if (a.totalFines !== b.totalFines) return a.totalFines - b.totalFines;
     if (a.streak !== b.streak) return b.streak - a.streak;
-    // Tiebreak: prefer person whose most recent completed workout is more
+    // Tiebreak: more completed workout days wins. Off days (sick/rest)
+    // preserve streak but don't count as a completed workout — so someone
+    // who rested yesterday and worked out first today doesn't leapfrog
+    // people who actually worked out both days.
+    if (a.totalCompletions !== b.totalCompletions)
+      return b.totalCompletions - a.totalCompletions;
+    // Then: prefer person whose most recent completed workout is more
     // recent; within the same date, earlier local finish time wins.
     const aw = a.lastWorkout,
       bw = b.lastWorkout;
@@ -2158,7 +2164,9 @@ function renderLeaderboard() {
     } else {
       const prev = data[i - 1];
       const tied =
-        entry.totalFines === prev.totalFines && entry.streak === prev.streak;
+        entry.totalFines === prev.totalFines &&
+        entry.streak === prev.streak &&
+        entry.totalCompletions === prev.totalCompletions;
       entry.rank = tied ? prev.rank : i + 1;
     }
   });
