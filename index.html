@@ -206,11 +206,20 @@
 
         <!-- LEADERBOARD VIEW -->
         <section class="view" id="view-leaderboard">
-          <div class="view-header">
-            <h2 class="view-title">Leaderboard</h2>
-            <p class="view-subtitle">All-time performance</p>
+          <div class="view-header today-header">
+            <div class="date-stamp">
+              <span class="date-stamp-day">Leaderboard</span>
+              <span class="date-stamp-rest" id="lb-day-of-challenge"></span>
+            </div>
           </div>
-          <div id="board-stats"></div>
+          <div class="lb-ticker" id="lb-pot-card">
+            <div class="lb-ticker-bg"></div>
+            <div class="lb-ticker-row">
+              <span class="lb-ticker-label">Group Pot</span>
+              <span class="lb-ticker-amount" id="lb-pot-amount">$0</span>
+            </div>
+          </div>
+          <div id="lb-podium"></div>
           <div id="leaderboard-container">
             <div class="skeleton skeleton-card"></div>
           </div>
@@ -218,16 +227,35 @@
 
         <!-- HISTORY VIEW -->
         <section class="view" id="view-history">
-          <div class="view-header">
-            <h2 class="view-title">History</h2>
-            <p class="view-subtitle">All-time</p>
+          <div class="view-header today-header">
+            <div class="date-stamp">
+              <span class="date-stamp-day">History</span>
+            </div>
           </div>
+          <p class="history-epigraph">
+            Those who cannot remember the past are condemned to repeat it.
+          </p>
           <div id="history-container">
             <div class="skeleton skeleton-card"></div>
           </div>
-          <a class="btn-recap" href="/reports/latest.html">
-            📊 Latest Recap Report
-          </a>
+          <section class="hh-reports">
+            <header class="hh-stats-head">
+              <div class="hh-titleline">
+                <h3 class="hh-section-title">Reports</h3>
+                <span class="hh-subhead">· deep dives</span>
+              </div>
+            </header>
+            <div class="hh-reports-list">
+              <a class="hh-report-btn" href="/reports/latest.html">
+                <span class="hh-report-icon">📊</span>
+                <span class="hh-report-text">
+                  <span class="hh-report-title">60-day Recap</span>
+                  <span class="hh-report-sub">numbers, stories, highlights</span>
+                </span>
+                <span class="hh-report-arrow">→</span>
+              </a>
+            </div>
+          </section>
         </section>
 
         <!-- ADMIN VIEW -->

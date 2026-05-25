@@ -1386,10 +1386,7 @@ function renderTodayView() {
           countNow = 0;
         }
       }
-      const pct = Math.min(
-        100,
-        Math.round((countNow / ex.targetCount) * 100),
-      );
+      const pct = Math.min(100, Math.round((countNow / ex.targetCount) * 100));
       const counterDisabled = !isMe || offToday ? "disabled" : "";
       const inc = getIncrement(ex.id);
       const ctaHTML = isMe
@@ -1425,11 +1422,12 @@ function renderTodayView() {
     const completionTime = allDone
       ? getWorkoutCompletionTime(participant.name, state.todayStr)
       : null;
-    const substatusText = allDone && completionTime
-      ? `Done at ${completionTime}`
-      : allDone
-        ? "All done"
-        : "";
+    const substatusText =
+      allDone && completionTime
+        ? `Done at ${completionTime}`
+        : allDone
+          ? "All done"
+          : "";
 
     const bannerHTML = offToday
       ? `
@@ -1440,14 +1438,15 @@ function renderTodayView() {
         </div>`
       : "";
 
-    const streakHTML = streak > 0
-      ? `
+    const streakHTML =
+      streak > 0
+        ? `
         <div class="card-streak" aria-label="${streak}-day streak">
           <span class="card-streak-flame" aria-hidden="true">🔥</span>
           <span class="card-streak-num">${streak}</span>
           <span class="card-streak-label">${streak === 1 ? "day" : "day"} streak</span>
         </div>`
-      : "";
+        : "";
 
     const menuShown = isMe && !offToday && !allDone;
     const restDisabled = restRemaining === 0;
@@ -1543,7 +1542,8 @@ function renderTodayView() {
           document.removeEventListener("click", outside, true);
         };
         const outside = (e) => {
-          if (!menuPanel.contains(e.target) && e.target !== menuBtn) closeMenu();
+          if (!menuPanel.contains(e.target) && e.target !== menuBtn)
+            closeMenu();
         };
         menuBtn.addEventListener("click", (e) => {
           e.stopPropagation();
@@ -1615,7 +1615,8 @@ function renderTodayView() {
             : isOtherSick
               ? `<span class="gsm-status sick">🤒 Sick Day</span>`
               : `<span class="gsm-status">${done.length}/${total}</span>`;
-        const offClass = isOtherOff && !isOtherDone ? (isOtherRest ? " rest" : " sick") : "";
+        const offClass =
+          isOtherOff && !isOtherDone ? (isOtherRest ? " rest" : " sick") : "";
         return `
         <div class="gsm-tile${isOtherDone ? " done" : ""}${offClass}" style="--tile-color:${color}">
           ${progressRingHTML(pct, color, isOtherOff && !isOtherDone, p)}
@@ -1970,7 +1971,8 @@ function applyPendingOptimistic() {
         c.person === item.person &&
         c.exercise === item.exercise,
     );
-    if (idx >= 0) state.completions[idx] = { ...state.completions[idx], ...item };
+    if (idx >= 0)
+      state.completions[idx] = { ...state.completions[idx], ...item };
     else state.completions.push(item);
   }
 }
@@ -2138,40 +2140,27 @@ function renderLeaderboard() {
     Math.ceil((endDate - todayMidnight) / 86400000),
   );
 
-  let secondStat;
-  if (CONFIG.CHALLENGE_START_DATE) {
-    const startDate = new Date(CONFIG.CHALLENGE_START_DATE + "T00:00:00");
-    if (todayMidnight >= startDate) {
-      const dayOf = Math.floor((todayMidnight - startDate) / 86400000) + 1;
-      const totalDays = Math.max(
-        1,
-        Math.round((endDate - startDate) / 86400000) + 1,
-      );
-      secondStat = `
-      <div class="board-stat">
-        <div class="board-stat-value">${dayOf} <span style="font-size:0.85rem;opacity:0.6;">/ ${totalDays}</span></div>
-        <div class="board-stat-label">📆 Day of Challenge</div>
-      </div>`;
+  // Magazine-style header: dedicated pot card + day-of-challenge stamp
+  const potAmount = document.getElementById("lb-pot-amount");
+  if (potAmount) potAmount.textContent = `$${groupPot}`;
+  const potCard = document.getElementById("lb-pot-card");
+  if (potCard) potCard.classList.toggle("is-empty", groupPot === 0);
+  const dayStamp = document.getElementById("lb-day-of-challenge");
+  if (dayStamp) {
+    let label = `${daysRemaining} DAYS LEFT`;
+    if (CONFIG.CHALLENGE_START_DATE) {
+      const startDate = new Date(CONFIG.CHALLENGE_START_DATE + "T00:00:00");
+      if (todayMidnight >= startDate) {
+        const dayOf = Math.floor((todayMidnight - startDate) / 86400000) + 1;
+        const totalDays = Math.max(
+          1,
+          Math.round((endDate - startDate) / 86400000) + 1,
+        );
+        label = `DAY ${dayOf} / ${totalDays}`;
+      }
     }
+    dayStamp.textContent = label;
   }
-  if (!secondStat) {
-    secondStat = `
-      <div class="board-stat">
-        <div class="board-stat-value">${daysRemaining}</div>
-        <div class="board-stat-label">📅 Days Remaining</div>
-      </div>`;
-  }
-
-  document.getElementById("board-stats").innerHTML = `
-    <div class="board-stats-banner">
-      <div class="board-stat">
-        <div class="board-stat-value">$${groupPot}</div>
-        <div class="board-stat-label">💰 Group Pot</div>
-      </div>
-      <div class="board-stat-divider"></div>
-      ${secondStat}
-    </div>
-  `;
 
   const data = state.participants.map((p) => {
     const totalFines =
@@ -2272,39 +2261,99 @@ function renderLeaderboard() {
     }
   });
 
-  data.forEach((entry, i) => {
-    const { participant, totalFines, totalCompletions, streak, rank } = entry;
-    const color = getParticipantColor(participant);
-    const fineDisplay = totalFines === 0 ? "$0" : `-$${totalFines}`;
-    const fineClass = totalFines === 0 ? "zero" : "";
-    const rate =
-      allDaysExceptToday.length > 0
-        ? Math.round((totalCompletions / allDaysExceptToday.length) * 100)
-        : 0;
-    const rankDisplay = rank <= 3 ? rankEmojis[rank - 1] : rank;
-    const rankClass = rank <= 3 ? rankClasses[rank - 1] : "";
+  // Build podium (top 3) + rest list
+  const podiumEl = document.getElementById("lb-podium");
+  podiumEl.innerHTML = "";
+  const podiumEntries = data.filter((e) => e.rank <= 3);
+  const restEntries = data.filter((e) => e.rank > 3);
 
-    const item = document.createElement("div");
-    item.className = `leaderboard-item${rank === 1 ? " rank-first" : ""}`;
-    item.innerHTML = `
-      <div class="rank-badge ${rankClass}">${rankDisplay}</div>
-      ${avatarHTML(participant, "leaderboard-avatar")}
-      <div class="leaderboard-info">
-        <div class="leaderboard-name">${participant.name}</div>
-        <div class="leaderboard-stats">
-          ${streak > 0 ? `<span class="stat-pill streak">🔥 ${streak} streak</span>` : ""}
+  const streakHTML = (entry) =>
+    entry.streak > 0
+      ? `<span class="lb-streak"><span class="lb-streak-flame">🔥</span><span class="lb-streak-num">${entry.streak}</span></span>`
+      : `<span class="lb-streak-none">no streak</span>`;
+
+  // -------- PODIUM (visual blocks) --------
+  // Lay out one stand per podium entry. Tier (height/color) follows rank.
+  // Classic 2 | 1 | 3 order ONLY when we have exactly one of each rank;
+  // otherwise (any tie) fall back to rank-ascending left→right.
+  const byRank = (r) => podiumEntries.filter((e) => e.rank === r);
+  const firsts = byRank(1);
+  const seconds = byRank(2);
+  const thirds = byRank(3);
+
+  // If there's a single clear winner, center them and arrange others around.
+  // Otherwise (tied 1sts) fall back to rank-ascending left→right.
+  let ordered;
+  if (firsts.length === 1) {
+    const others = [...seconds, ...thirds]; // rank-ordered: 2s closer to gold
+    const left = [];
+    const right = [];
+    others.forEach((entry, i) => {
+      // Alternate: silver/bronze pairs build outward from the center
+      if (i % 2 === 0) left.unshift(entry); // even index → outer-left
+      else right.push(entry); // odd index → outer-right
+    });
+    ordered = [...left, firsts[0], ...right];
+  } else {
+    ordered = [...firsts, ...seconds, ...thirds];
+  }
+
+  const standHTML = (entry) => {
+    const tier = entry.rank;
+    const medal = tier === 1 ? "🥇" : tier === 2 ? "🥈" : "🥉";
+    const fineDisplay =
+      entry.totalFines === 0 ? "$0" : `-$${entry.totalFines}`;
+    const fineClass = entry.totalFines === 0 ? "zero" : "";
+    return `
+      <div class="lb-stand tier-${tier}">
+        <div class="lb-stand-stack">
+          ${avatarHTML(entry.participant, "lb-stand-avatar")}
+          <div class="lb-stand-name">${entry.participant.name}</div>
+          <div class="lb-stand-meta">
+            ${streakHTML(entry)}
+            <span class="lb-stand-fine ${fineClass}">${fineDisplay}</span>
+          </div>
         </div>
-        <div class="progress-bar-wrap">
-          <div class="progress-bar-fill" style="width:${rate}%;background:${color};"></div>
+        <div class="lb-stand-block tier-${tier}">
+          <span class="lb-stand-medal">${medal}</span>
         </div>
-      </div>
-      <div class="leaderboard-fine">
-        <div class="lb-fine-amount ${fineClass}">${fineDisplay}</div>
-        <div class="lb-fine-label">fines</div>
       </div>
     `;
-    container.appendChild(item);
-  });
+  };
+
+  const stage = document.createElement("div");
+  stage.className = "lb-stage";
+  stage.style.setProperty("--stand-count", ordered.length);
+  stage.innerHTML = ordered.map(standHTML).join("");
+  podiumEl.appendChild(stage);
+
+  // -------- LEDGER (4th+) --------
+  if (restEntries.length) {
+    const ledger = document.createElement("div");
+    ledger.className = "lb-ledger";
+    ledger.innerHTML = `
+      <div class="lb-ledger-head">
+        <span>RANK</span><span></span><span>NAME</span><span>STREAK</span><span>FINES</span>
+      </div>
+      ${restEntries
+        .map((entry) => {
+          const { participant, totalFines, rank } = entry;
+          const fineDisplay =
+            totalFines === 0 ? "$0" : `−$${totalFines}`;
+          const fineClass = totalFines === 0 ? "zero" : "";
+          return `
+            <div class="lb-ledger-row">
+              <span class="lb-ledger-rank">${String(rank).padStart(2, "0")}</span>
+              ${avatarHTML(participant, "lb-ledger-avatar")}
+              <span class="lb-ledger-name">${participant.name}</span>
+              <span class="lb-ledger-streak">${streakHTML(entry)}</span>
+              <span class="lb-ledger-fine ${fineClass}">${fineDisplay}</span>
+            </div>`;
+        })
+        .join("")}
+    `;
+    container.appendChild(ledger);
+  }
 }
 
 // ============================================================
@@ -2494,263 +2543,295 @@ async function renderHistory() {
   const container = document.getElementById("history-container");
   container.innerHTML = "";
 
-  // Cap history display to the 90-day window already in memory
-  const ninetyDaysAgo = (() => {
-    const d = new Date();
-    d.setDate(d.getDate() - 90);
-    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-  })();
+  const WINDOW = 90;
+  const toDateStr = (d) =>
+    `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 
-  state.participants.forEach((participant) => {
-    const color = getParticipantColor(participant);
-    const windowStart =
-      (participant.joinedDate || ninetyDaysAgo) > ninetyDaysAgo
-        ? participant.joinedDate || ninetyDaysAgo
-        : ninetyDaysAgo;
-    const participantToday =
-      participant.timezoneOffset != null
-        ? getTodayStrForOffset(participant.timezoneOffset)
-        : state.todayStr;
-    const allDays = (() => {
-      const days = [];
-      const d = new Date(windowStart + "T00:00:00");
-      const participantTodayDate = new Date(participantToday + "T00:00:00");
-      while (d <= participantTodayDate) {
-        days.push(
-          `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`,
-        );
-        d.setDate(d.getDate() + 1);
-      }
-      return days;
-    })();
+  // Build a single shared timeline of WINDOW days, oldest → newest.
+  const todayLocal = new Date();
+  const days = [];
+  for (let i = WINDOW - 1; i >= 0; i--) {
+    const d = new Date(todayLocal);
+    d.setDate(d.getDate() - i);
+    days.push(toDateStr(d));
+  }
 
-    // Summary stats — use stored aggregates for all-time fines/streaks
-    const totalFines = calcFinesForPersonAllTime(participant.name);
-    const streak = calcStreak(participant.name);
-    const bestStreak = calcBestStreak(participant.name);
-    const pastDays = allDays.filter((d) => d < participantToday);
-    const todayDone = isWorkoutComplete(participant.name, participantToday);
-    const completedDays =
-      pastDays.filter((d) => isWorkoutComplete(participant.name, d)).length +
-      (todayDone ? 1 : 0);
-    const totalCountedDays = pastDays.length + (todayDone ? 1 : 0);
-    const completionRate =
-      totalCountedDays > 0
-        ? Math.round((completedDays / totalCountedDays) * 100)
-        : 100;
+  // Per-day width = cell + left margin (default gap, week gap, or month gap).
+  const CELL_W = 14;
+  const DEFAULT_GAP = 2;
+  const WEEK_GAP = 8;
+  const MONTH_GAP = 12;
+  const dayMeta = days.map((d, i) => {
+    const dt = new Date(d + "T00:00:00");
+    const isMonthStart = i > 0 && d.slice(8) === "01";
+    const isWeekStart = i > 0 && !isMonthStart && dt.getDay() === 1;
+    const leftGap =
+      i === 0
+        ? 0
+        : isMonthStart
+          ? MONTH_GAP
+          : isWeekStart
+            ? WEEK_GAP
+            : DEFAULT_GAP;
+    return { isMonthStart, isWeekStart, leftGap, width: CELL_W + leftGap };
+  });
 
-    // Earliest / latest completion times — all-time. Stored aggregates on the
-    // participant doc cover history older than the 90-day window; we merge in
-    // any completions inside the visible window (including today) so a brand
-    // new fastest/slowest workout is reflected immediately.
-    let earliestMins = participant.earliestWorkoutMinutes ?? null;
-    let latestMins = participant.latestWorkoutMinutes ?? null;
-    for (const date of allDays) {
-      const tMins = parseTimeLabelToMinutes(
-        getWorkoutCompletionTime(participant.name, date),
-      );
-      if (tMins == null) continue;
-      if (earliestMins == null || tMins < earliestMins) earliestMins = tMins;
-      if (latestMins == null || tMins > latestMins) latestMins = tMins;
-    }
-    const earliestLabel = formatMinutesToTimeLabel(earliestMins);
-    const latestLabel = formatMinutesToTimeLabel(latestMins);
-
-    // Date label without month (used inside month sections)
-    const fmtDay = (dateStr) => {
-      const d = new Date(dateStr + "T00:00:00");
-      return d.toLocaleDateString("en-US", {
-        weekday: "short",
-        day: "numeric",
-      });
-    };
-
-    // Group days by month (YYYY-MM)
-    const monthMap = {};
-    for (const date of allDays) {
-      const monthKey = date.slice(0, 7);
-      if (!monthMap[monthKey]) monthMap[monthKey] = [];
-      monthMap[monthKey].push(date);
-    }
-    const monthKeys = Object.keys(monthMap).sort().reverse(); // newest first
-
-    // Build months HTML
-    let monthsHTML = "";
-    for (const monthKey of monthKeys) {
-      const monthDays = monthMap[monthKey].slice().reverse(); // newest first within month
-      const monthFine = calcFinesForPerson(
-        participant.name,
-        monthDays.filter((d) => d !== participantToday),
-      );
-      const monthDate = new Date(monthKey + "-01T00:00:00");
-      const monthLabel = monthDate.toLocaleDateString("en-US", {
-        month: "long",
-        year: "numeric",
-      });
-
-      let daysHTML = "";
-      for (const date of monthDays) {
-        const isToday = date === participantToday;
-        const isSick = isSickDay(participant.name, date);
-        const isRest = isRestDay(participant.name, date);
-        const isOff = isSick || isRest;
-        const allComplete = isWorkoutComplete(participant.name, date);
-        const done = getCompletedExercisesForDay(participant.name, date);
-        const offBadgeClass = isRest ? "rest" : "sick";
-        const exBadges = CONFIG.EXERCISES.map((ex) => {
-          const isDone = done.includes(ex.id);
-          if (isOff && !isDone)
-            return `<span class="history-ex-badge ${offBadgeClass}">${ex.emoji}</span>`;
-          if (isToday && !isDone)
-            return `<span class="history-ex-badge pending">${ex.emoji}</span>`;
-          return `<span class="history-ex-badge ${isDone ? "done" : "missed"}">${ex.emoji}</span>`;
-        }).join("");
-
-        let dayFine = 0;
-        if (!isToday && !isOff) {
-          const missed = CONFIG.EXERCISES.filter(
-            (ex) => !done.includes(ex.id),
-          ).length;
-          dayFine =
-            missed === CONFIG.EXERCISES.length
-              ? CONFIG.FINE_ALL_MISSED
-              : missed * CONFIG.FINE_PER_EXERCISE;
-        }
-
-        const offEmoji = isRest ? "🏖️" : "🤒";
-        const offRowClass = isRest ? "rest-day-row" : "sick-day-row";
-        const offLabelClass = isRest ? "rest-label" : "sick-label";
-        daysHTML += `
-          <div class="history-day${isOff && !allComplete ? " " + offRowClass : ""}">
-            <div class="history-date">${fmtDay(date)}</div>
-            <div class="history-exercises">${exBadges}</div>
-            ${
-              isOff && !allComplete
-                ? `<div class="history-fine-day ${offLabelClass}">${offEmoji}</div>`
-                : isToday
-                  ? `<div class="history-fine-day zero" style="font-size:0.7rem;">today</div>`
-                  : `<div class="history-fine-day ${dayFine > 0 ? "" : "zero"}">${dayFine > 0 ? `-$${dayFine}` : "$0"}</div>`
-            }
-          </div>
-        `;
-      }
-
-      monthsHTML += `
-        <div class="history-month">
-          <div class="history-month-header">
-            <span class="history-month-label">${monthLabel}</span>
-            <span class="history-month-fine ${monthFine === 0 ? "zero" : ""}">${monthFine > 0 ? `-$${monthFine}` : "$0"}</span>
-            <span class="history-month-chevron">▾</span>
-          </div>
-          <div class="history-month-days"><div class="history-month-days-inner">${daysHTML}</div></div>
-        </div>
-      `;
-    }
-
-    const section = document.createElement("div");
-    section.className = "history-person";
-    section.innerHTML = `
-      <div class="history-person-header">
-        ${avatarHTML(participant, "history-avatar")}
-        <div><div class="history-name">${participant.name}</div></div>
-        <span class="history-chevron"></span>
-      </div>
-      <div class="history-summary">
-        <div class="history-summary-row primary">
-          <div class="history-summary-stat">
-            <div class="history-summary-value" style="color:var(--danger);">-$${totalFines}</div>
-            <div class="history-summary-label">Fines</div>
-          </div>
-          <div class="history-summary-stat">
-            <div class="history-summary-value" style="color:var(--warning);">${streak}</div>
-            <div class="history-summary-label">Streak</div>
-          </div>
-          <div class="history-summary-stat">
-            <div class="history-summary-value" style="color:var(--success);">${completedDays}</div>
-            <div class="history-summary-label">Days</div>
-          </div>
-          <div class="history-summary-stat">
-            <div class="history-summary-value" style="color:var(--success);">${completionRate}%</div>
-            <div class="history-summary-label">Rate</div>
-          </div>
-        </div>
-        <div class="history-summary-row secondary">
-          <div class="history-summary-stat">
-            <div class="history-summary-value" style="color:var(--warning);">${bestStreak}</div>
-            <div class="history-summary-label">Best</div>
-          </div>
-          <div class="history-summary-stat">
-            <div class="history-summary-value history-summary-time" style="color:var(--accent);">${earliestLabel}</div>
-            <div class="history-summary-label">Earliest</div>
-          </div>
-          <div class="history-summary-stat">
-            <div class="history-summary-value history-summary-time" style="color:var(--accent);">${latestLabel}</div>
-            <div class="history-summary-label">Latest</div>
-          </div>
-        </div>
-      </div>
-      <div class="history-days"><div class="history-days-inner">${monthsHTML}</div></div>
-    `;
-
-    container.appendChild(section);
-
-    const daysEl = section.querySelector(".history-days");
-
-    // Month accordions
-    section.querySelectorAll(".history-month").forEach((monthEl) => {
-      const monthDaysEl = monthEl.querySelector(".history-month-days");
-      monthEl
-        .querySelector(".history-month-header")
-        .addEventListener("click", () => {
-          const expanded = monthEl.classList.contains("expanded");
-          if (expanded) {
-            monthDaysEl.style.height = monthDaysEl.scrollHeight + "px";
-            requestAnimationFrame(() => {
-              monthDaysEl.style.height = "0";
-            });
-            monthEl.classList.remove("expanded");
-          } else {
-            monthEl.classList.add("expanded");
-            monthDaysEl.style.height = monthDaysEl.scrollHeight + "px";
-            monthDaysEl.addEventListener(
-              "transitionend",
-              () => {
-                if (monthEl.classList.contains("expanded"))
-                  monthDaysEl.style.height = "auto";
-              },
-              { once: true },
-            );
-          }
-        });
+  // Group days into month spans + compute pixel width per month segment.
+  const monthSpans = [];
+  for (let i = 0; i < days.length; ) {
+    const key = days[i].slice(0, 7);
+    let j = i;
+    while (j < days.length && days[j].slice(0, 7) === key) j++;
+    let width = 0;
+    for (let k = i; k < j; k++) width += dayMeta[k].width;
+    monthSpans.push({ key, span: j - i, width });
+    i = j;
+  }
+  const monthLabel = (key) =>
+    new Date(key + "-01T00:00:00").toLocaleDateString("en-US", {
+      month: "short",
     });
 
-    // Person card accordion — overflow:visible after open so months aren't clipped
-    section
-      .querySelector(".history-person-header")
-      .addEventListener("click", () => {
-        const expanded = section.classList.contains("expanded");
-        if (expanded) {
-          daysEl.style.overflow = "hidden";
-          daysEl.style.height = daysEl.scrollHeight + "px";
-          requestAnimationFrame(() => {
-            daysEl.style.height = "0";
-          });
-          section.classList.remove("expanded");
-        } else {
-          section.classList.add("expanded");
-          daysEl.style.height = daysEl.scrollHeight + "px";
-          daysEl.addEventListener(
-            "transitionend",
-            () => {
-              if (section.classList.contains("expanded")) {
-                daysEl.style.height = "auto";
-                daysEl.style.overflow = "visible";
-              }
-            },
-            { once: true },
-          );
-        }
-      });
+  const fmtFullDate = (dateStr) =>
+    new Date(dateStr + "T00:00:00").toLocaleDateString("en-US", {
+      weekday: "short",
+      month: "short",
+      day: "numeric",
+    });
+
+  // ----- Per-participant computation -----
+  const rows = state.participants.map((p) => {
+    const color = getParticipantColor(p);
+    const tz = p.timezoneOffset;
+    const pToday = tz != null ? getTodayStrForOffset(tz) : state.todayStr;
+    const joined = p.joinedDate || days[0];
+
+    // Per-cell state
+    const cells = days.map((date) => {
+      if (date < joined) return { date, state: "pre" };
+      if (date > pToday) return { date, state: "pre" }; // future for them
+      const isToday = date === pToday;
+      const sick = isSickDay(p.name, date);
+      const rest = isRestDay(p.name, date);
+      const done = getCompletedExercisesForDay(p.name, date);
+      const allComplete = done.length === CONFIG.EXERCISES.length;
+      if (allComplete)
+        return {
+          date,
+          state: "done",
+          done: done.length,
+          time: getWorkoutCompletionTime(p.name, date),
+        };
+      if (sick) return { date, state: "sick" };
+      if (rest) return { date, state: "rest" };
+      if (isToday) return { date, state: "today", done: done.length };
+      if (done.length > 0) return { date, state: "partial", done: done.length };
+      return { date, state: "miss" };
+    });
+
+    // Summary stats
+    const totalFines = calcFinesForPersonAllTime(p.name);
+    const streak = calcStreak(p.name);
+    const bestStreak = calcBestStreak(p.name);
+    const completedDays = cells.filter((c) => c.state === "done").length;
+    const eligibleDays = cells.filter(
+      (c) =>
+        c.state === "done" ||
+        c.state === "miss" ||
+        c.state === "partial" ||
+        c.state === "rest",
+    ).length;
+    const rate =
+      eligibleDays > 0 ? Math.round((completedDays / eligibleDays) * 100) : 100;
+
+    let earliestMins = p.earliestWorkoutMinutes ?? null;
+    let latestMins = p.latestWorkoutMinutes ?? null;
+    for (const c of cells) {
+      if (!c.time) continue;
+      const m = parseTimeLabelToMinutes(c.time);
+      if (m == null) continue;
+      if (earliestMins == null || m < earliestMins) earliestMins = m;
+      if (latestMins == null || m > latestMins) latestMins = m;
+    }
+
+    return {
+      participant: p,
+      color,
+      cells,
+      stats: {
+        totalFines,
+        streak,
+        bestStreak,
+        completedDays,
+        rate,
+        earliest: formatMinutesToTimeLabel(earliestMins),
+        latest: formatMinutesToTimeLabel(latestMins),
+      },
+    };
+  });
+
+  // Sort: highest completion rate first, ties broken by current streak
+  const ranked = rows
+    .slice()
+    .sort(
+      (a, b) =>
+        b.stats.rate - a.stats.rate ||
+        b.stats.streak - a.stats.streak ||
+        b.stats.completedDays - a.stats.completedDays,
+    );
+
+  // ----- HEAT MAP HTML -----
+  const monthAxis = monthSpans
+    .map(
+      (m) =>
+        `<div class="hh-month-seg" style="width:${m.width}px;"><span class="hh-month-cell">${monthLabel(m.key)}</span></div>`,
+    )
+    .join("");
+
+  const cellsHTML = (rowIdx, cells) =>
+    cells
+      .map((c, i) => {
+        const meta = dayMeta[i];
+        const divCls = meta.isMonthStart
+          ? " hh-mstart"
+          : meta.isWeekStart
+            ? " hh-wstart"
+            : "";
+        const style = meta.leftGap
+          ? ` style="margin-left:${meta.leftGap}px;"`
+          : "";
+        return `<button type="button" class="hh-cell hh-c-${c.state}${divCls}"${style} data-row="${rowIdx}" data-i="${i}" aria-label="${fmtFullDate(c.date)} — ${c.state}"></button>`;
+      })
+      .join("");
+
+  // One grid row per person: name cell + cells cell as siblings
+  const personRowsHTML = ranked
+    .map(
+      (r, idx) => `
+    <div class="hh-name-row" style="--c:${r.color};">
+      ${avatarHTML(r.participant, "hh-avatar")}
+      <div class="hh-person-name">${r.participant.name}</div>
+    </div>
+    <div class="hh-cell-row">${cellsHTML(idx, r.cells)}</div>
+  `,
+    )
+    .join("");
+
+  // ----- COMBINED STATS TABLE -----
+  const tableRowsHTML = ranked
+    .map(
+      (r) => `
+    <tr style="--c:${r.color};">
+      <th scope="row" class="hh-t-person">
+        <div class="hh-t-person-inner">
+          ${avatarHTML(r.participant, "hh-t-avatar")}
+          <span class="hh-t-name">${r.participant.name}</span>
+        </div>
+      </th>
+      <td class="hh-t-fines">${r.stats.totalFines > 0 ? `−$${r.stats.totalFines}` : "$0"}</td>
+      <td class="hh-t-rate">${r.stats.rate}%</td>
+      <td class="hh-t-days">${r.stats.completedDays}</td>
+      <td class="hh-t-time">${r.stats.earliest}</td>
+      <td class="hh-t-time">${r.stats.latest}</td>
+    </tr>
+  `,
+    )
+    .join("");
+
+  const tableHTML = `
+    <table class="hh-table">
+      <thead>
+        <tr>
+          <th></th>
+          <th>Fines</th>
+          <th>Rate</th>
+          <th>Days</th>
+          <th>Earliest</th>
+          <th>Latest</th>
+        </tr>
+      </thead>
+      <tbody>${tableRowsHTML}</tbody>
+    </table>
+  `;
+
+  container.innerHTML = `
+    <section class="hh-wall">
+      <header class="hh-wall-head">
+        <div class="hh-titleline">
+          <h3 class="hh-section-title">Receipts</h3>
+          <span class="hh-subhead">· last ${WINDOW} days</span>
+        </div>
+        <div class="hh-legend">
+          <span><i class="lg lg-done"></i>done</span>
+          <span><i class="lg lg-partial"></i>partial</span>
+          <span><i class="lg lg-miss"></i>missed</span>
+          <span><i class="lg lg-sick"></i>sick</span>
+          <span><i class="lg lg-rest"></i>rest</span>
+        </div>
+      </header>
+      <div class="hh-wall-scroll" id="hh-wall-scroll">
+        <div class="hh-wall-grid">
+          <div class="hh-axis-spacer"></div>
+          <div class="hh-month-axis">${monthAxis}</div>
+          ${personRowsHTML}
+        </div>
+      </div>
+      <div class="hh-detail" id="hh-detail" data-empty="1">
+        Tap any square for details
+      </div>
+    </section>
+
+    <section class="hh-stats">
+      <header class="hh-stats-head">
+        <div class="hh-titleline">
+          <h3 class="hh-section-title">Score sheet</h3>
+          <span class="hh-subhead">· all-time</span>
+        </div>
+      </header>
+      <div class="hh-table-scroll">${tableHTML}</div>
+    </section>
+  `;
+
+  // Auto-scroll heat map to the right edge so "today" is in view.
+  const scroller = container.querySelector("#hh-wall-scroll");
+  requestAnimationFrame(() => {
+    scroller.scrollLeft = scroller.scrollWidth;
+  });
+
+  // Cell tap → detail bar
+  const detail = container.querySelector("#hh-detail");
+  const stateLabel = {
+    done: "completed",
+    partial: "partial",
+    miss: "skipped — fined",
+    sick: "🤒 sick day",
+    rest: "🏖️ rest day",
+    today: "in progress",
+    pre: "not started",
+  };
+  container.querySelector(".hh-wall-grid").addEventListener("click", (e) => {
+    const btn = e.target.closest(".hh-cell");
+    if (!btn) return;
+    const rowIdx = parseInt(btn.dataset.row, 10);
+    const i = parseInt(btn.dataset.i, 10);
+    const row = ranked[rowIdx];
+    const cell = row.cells[i];
+    let extra = "";
+    if (cell.state === "done" && cell.time) extra = ` · ${cell.time}`;
+    else if (cell.state === "partial")
+      extra = ` · ${cell.done}/${CONFIG.EXERCISES.length} done`;
+    else if (cell.state === "today" && cell.done)
+      extra = ` · ${cell.done}/${CONFIG.EXERCISES.length} so far`;
+    detail.removeAttribute("data-empty");
+    detail.innerHTML = `
+      <strong>${row.participant.name}</strong>
+      <span class="hh-detail-date">${fmtFullDate(cell.date)}</span>
+      <span class="hh-detail-state hh-d-${cell.state}">${stateLabel[cell.state]}${extra}</span>
+    `;
+    container
+      .querySelectorAll(".hh-cell.is-active")
+      .forEach((b) => b.classList.remove("is-active"));
+    btn.classList.add("is-active");
   });
 }
 
