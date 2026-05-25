@@ -1034,6 +1034,9 @@ function initListeners() {
       query(collection(db, "completions"), where("date", ">=", ninetyDaysAgo)),
       (snap) => {
         state.completions = snap.docs.map((d) => d.data());
+        // Re-apply any in-flight optimistic writes so a snapshot for one
+        // exercise doesn't visually revert another exercise mid-save.
+        applyPendingOptimistic();
         gotCompletions = true;
         if (gotParticipants) onBothLoaded();
       },
@@ -1379,22 +1382,38 @@ function renderTodayView() {
           countNow = 0;
         }
       }
+      const pct = Math.min(
+        100,
+        Math.round((countNow / ex.targetCount) * 100),
+      );
       const counterDisabled = !isMe || offToday ? "disabled" : "";
       const inc = getIncrement(ex.id);
-      const counterHTML = isMe
+      const ctaHTML = isMe
         ? `
-        <div class="exercise-counter">
-          <button class="counter-btn counter-dec" data-person="${participant.name}" data-exercise="${ex.id}" data-direction="dec" ${counterDisabled}>−</button>
-          <span class="counter-display" data-person="${participant.name}" data-exercise="${ex.id}" data-target="${ex.targetCount}" data-unit="${ex.unit}" style="cursor:pointer" title="Tap to set exact count (${ex.unit})">${countNow} / ${ex.targetCount}</span>
-          <button class="counter-btn counter-inc" data-person="${participant.name}" data-exercise="${ex.id}" data-direction="inc" ${counterDisabled}>+${inc}</button>
-          <button class="counter-settings-btn" data-exercise="${ex.id}" ${counterDisabled} title="Change increment">⚙</button>
+        <div class="exercise-cta-row">
+          <button class="counter-btn counter-dec" data-person="${participant.name}" data-exercise="${ex.id}" data-direction="dec" ${counterDisabled} aria-label="Remove ${inc}">−</button>
+          <button class="counter-btn counter-inc" data-person="${participant.name}" data-exercise="${ex.id}" data-direction="inc" ${counterDisabled}>
+            <span class="cta-fill" aria-hidden="true"></span>
+            <span class="cta-label">+${inc}</span>
+          </button>
+          <button class="counter-settings-btn" data-exercise="${ex.id}" ${counterDisabled} title="Set ${ex.unit} per tap" aria-label="Set ${ex.unit} per tap">set ${ex.unit}</button>
         </div>`
         : "";
+      const metaCounter = isMe
+        ? `<span class="counter-display" data-person="${participant.name}" data-exercise="${ex.id}" data-target="${ex.targetCount}" data-unit="${ex.unit}" style="cursor:pointer" title="Tap to set exact count (${ex.unit})">${countNow} / ${ex.targetCount}</span>`
+        : "";
+      const undoHTML = isMe
+        ? `<button class="exercise-undo" data-person="${participant.name}" data-exercise="${ex.id}" title="Undo — mark not done" aria-label="Undo">↺</button>`
+        : "";
       return `
-        <div class="exercise-item${done ? " exercise-done" : ""}">
-          <span class="exercise-emoji">${ex.emoji}</span>
-          <span class="exercise-name">${ex.name}</span>
-          ${counterHTML}
+        <div class="exercise-item${done ? " exercise-done" : ""}" style="--pct:${pct}%">
+          <div class="exercise-meta">
+            <span class="exercise-emoji">${ex.emoji}</span>
+            <span class="exercise-name">${ex.name}</span>
+            ${metaCounter}
+            ${undoHTML}
+          </div>
+          ${ctaHTML}
         </div>
       `;
     }).join("");
@@ -1402,31 +1421,60 @@ function renderTodayView() {
     const completionTime = allDone
       ? getWorkoutCompletionTime(participant.name, state.todayStr)
       : null;
-    const statusText = allDone
-      ? `🎉 All done!${completionTime ? ` · ${completionTime}` : ""}`
-      : restToday
-        ? "🏖️ Rest day — no fines"
-        : sickToday
-          ? "🤒 Sick day — no fines"
-          : `${completedToday.length}/${CONFIG.EXERCISES.length} completed`;
+    const substatusText = allDone && completionTime
+      ? `Done at ${completionTime}`
+      : allDone
+        ? "All done"
+        : "";
+
+    const bannerHTML = offToday
+      ? `
+        <div class="off-day-banner ${restToday ? "rest" : "sick"}">
+          <span class="banner-icon">${restToday ? "🏖️" : "🤒"}</span>
+          <span class="banner-text">${restToday ? "Rest day" : "Sick day"} · no fines today</span>
+          ${isMe ? `<button class="banner-undo" data-person="${participant.name}" data-type="${restToday ? "rest" : "sick"}" aria-label="Undo off-day">✕</button>` : ""}
+        </div>`
+      : "";
+
+    const streakHTML = streak > 0
+      ? `
+        <div class="card-streak" aria-label="${streak}-day streak">
+          <span class="card-streak-flame" aria-hidden="true">🔥</span>
+          <span class="card-streak-num">${streak}</span>
+          <span class="card-streak-label">${streak === 1 ? "day" : "day"} streak</span>
+        </div>`
+      : "";
+
+    const menuShown = isMe && !offToday && !allDone;
+    const restDisabled = restRemaining === 0;
+    const menuHTML = menuShown
+      ? `
+        <button class="card-menu-btn" aria-label="Day options" aria-haspopup="true" aria-expanded="false">🥱</button>
+        <div class="card-menu" role="menu" hidden>
+          <button class="card-menu-item sick-day-btn" data-person="${participant.name}" role="menuitem">
+            <span class="menu-icon">🤒</span>
+            <span class="menu-label">Mark sick day</span>
+          </button>
+          <button class="card-menu-item rest-day-btn" data-person="${participant.name}" role="menuitem"${restDisabled ? " disabled" : ""}>
+            <span class="menu-icon">🏖️</span>
+            <span class="menu-label">Take rest day</span>
+            <span class="menu-meta">${restRemaining} left this week</span>
+          </button>
+        </div>`
+      : "";
 
     card.innerHTML = `
-      <div class="card-header">
-        ${cardAvatarHTML}
-        <div class="card-info">
-          <div class="card-name">${participant.name}</div>
-          <div class="card-status">${statusText}</div>
-          ${streak > 0 ? `<div class="streak-pill">🔥 ${streak}-day streak</div>` : ""}
-          ${
-            isMe
-              ? `
-            <div class="off-day-btns">
-              <button class="sick-day-btn${sickToday ? " active" : ""}" data-person="${participant.name}"${allDone || restToday ? " disabled" : ""}>${sickToday ? "🤒 Sick Day" : "🤒 Sick?"}</button>
-              <button class="rest-day-btn${restToday ? " active" : ""}" data-person="${participant.name}"${allDone || sickToday || (!restToday && restRemaining === 0) ? " disabled" : ""}>${restToday ? "🏖️ Rest Day" : `🏖️ Rest (${restRemaining} left)`}</button>
-            </div>`
-              : ""
-          }
+      <div class="card-header" style="--ring-color:${color}">
+        ${bannerHTML}
+        <div class="card-identity">
+          ${cardAvatarHTML}
+          <div class="card-info">
+            <div class="card-name">${participant.name}</div>
+            <div class="card-substatus">${substatusText}</div>
+          </div>
         </div>
+        ${streakHTML}
+        ${menuHTML}
       </div>
       <div class="exercise-list">${exercisesHTML}</div>
       ${allDone ? '<div class="completion-banner">🎉 Workout Complete!</div>' : ""}
@@ -1451,13 +1499,24 @@ function renderTodayView() {
         settingsBtn.addEventListener("click", () => {
           const exerciseId = settingsBtn.dataset.exercise;
           const incBtn = settingsBtn
-            .closest(".exercise-counter")
+            .closest(".exercise-item")
             ?.querySelector(`.counter-inc[data-exercise="${exerciseId}"]`);
           if (incBtn) editIncrement(incBtn);
         });
       });
       card.querySelectorAll(".counter-display").forEach((span) => {
         span.addEventListener("click", () => editCountInline(span));
+      });
+      card.querySelectorAll(".exercise-undo").forEach((undoBtn) => {
+        undoBtn.addEventListener("click", () => {
+          const { person, exercise } = undoBtn.dataset;
+          const current = getCount(person, exercise, state.todayStr);
+          const inc = getIncrement(exercise);
+          const ex = CONFIG.EXERCISES.find((e) => e.id === exercise);
+          const delta = -Math.max(inc, current - (ex.targetCount - 1));
+          handleCountChange(person, exercise, delta);
+          playCounterDec();
+        });
       });
       const sickBtn = card.querySelector(".sick-day-btn");
       if (sickBtn) {
@@ -1470,6 +1529,43 @@ function renderTodayView() {
         restBtn.addEventListener("click", () =>
           toggleRestDay(participant.name, state.todayStr),
         );
+      }
+      const menuBtn = card.querySelector(".card-menu-btn");
+      const menuPanel = card.querySelector(".card-menu");
+      if (menuBtn && menuPanel) {
+        const closeMenu = () => {
+          menuPanel.hidden = true;
+          menuBtn.setAttribute("aria-expanded", "false");
+          document.removeEventListener("click", outside, true);
+        };
+        const outside = (e) => {
+          if (!menuPanel.contains(e.target) && e.target !== menuBtn) closeMenu();
+        };
+        menuBtn.addEventListener("click", (e) => {
+          e.stopPropagation();
+          const open = menuPanel.hidden;
+          if (open) {
+            menuPanel.hidden = false;
+            menuBtn.setAttribute("aria-expanded", "true");
+            setTimeout(
+              () => document.addEventListener("click", outside, true),
+              0,
+            );
+          } else {
+            closeMenu();
+          }
+        });
+        menuPanel
+          .querySelectorAll(".card-menu-item")
+          .forEach((item) => item.addEventListener("click", closeMenu));
+      }
+      const bannerUndo = card.querySelector(".banner-undo");
+      if (bannerUndo) {
+        bannerUndo.addEventListener("click", () => {
+          const { person, type } = bannerUndo.dataset;
+          if (type === "rest") toggleRestDay(person, state.todayStr);
+          else toggleSickDay(person, state.todayStr);
+        });
       }
     }
 
@@ -1609,6 +1705,12 @@ function setIncrement(exerciseId, value) {
   } catch {}
 }
 
+function formatIncLabel(inc, unit) {
+  if (unit === "reps") return `+${inc} ${inc === 1 ? "rep" : "reps"}`;
+  if (unit === "min") return `+${inc} ${inc === 1 ? "min" : "mins"}`;
+  return `+${inc} ${unit}`;
+}
+
 function addLongPress(el, callback) {
   let timer = null;
   let fired = false;
@@ -1637,96 +1739,30 @@ function addLongPress(el, callback) {
   });
 }
 
-function showLianeConfused(
-  anchorEl,
-  duration = 0,
-  imgSize = 48,
-  ghost = false,
-) {
-  const existing = document.getElementById("liane-confused-popup");
-  if (existing) existing.remove();
-
-  const el = document.createElement("div");
-  el.id = "liane-confused-popup";
-  el.innerHTML =
-    '<img src="/liane/liane_confused.png" alt="Liane confused" style="width:100%;height:100%;object-fit:contain;display:block;" class="liane-img">';
-  document.body.appendChild(el);
-
-  const rect = anchorEl.getBoundingClientRect();
-  let posLeft;
-  let flipX = false;
-  if (ghost) {
-    posLeft = rect.left + rect.width / 2 - imgSize / 2;
-  } else {
-    const rightPos = rect.right + 18;
-    const leftPos = rect.left - imgSize - 18;
-    if (rightPos + imgSize > window.innerWidth && leftPos >= 0) {
-      posLeft = leftPos;
-      flipX = true;
-    } else {
-      posLeft = rightPos;
-    }
-  }
-  const posTop = ghost
-    ? rect.top - imgSize / 2 + 9
-    : rect.top + rect.height / 2 - imgSize / 2;
-  el.style.cssText = `
-    position: absolute;
-    width: ${imgSize}px;
-    height: ${imgSize}px;
-    left: ${posLeft + window.scrollX}px;
-    top: ${posTop + window.scrollY}px;
-    pointer-events: none;
-    z-index: 9999;
-    animation: ${
-      ghost
-        ? `liane-ghost ${(duration || 2000) / 1000}s ease forwards`
-        : "liane-pop-in 0.25s cubic-bezier(0.34,1.56,0.64,1) forwards"
-    };
-  `;
-
-  if (!ghost) {
-    el.addEventListener(
-      "animationend",
-      () => {
-        el.style.animation = "liane-float-idle 1.4s ease-in-out infinite";
-      },
-      { once: true },
-    );
-
-    if (duration > 0) {
-      setTimeout(() => {
-        el.style.animation = "liane-fade-out 0.6s ease forwards";
-        el.addEventListener("animationend", () => el.remove(), { once: true });
-      }, duration);
-    }
-  } else {
-    el.addEventListener("animationend", () => el.remove(), { once: true });
-  }
-
-  return { el, flipX };
-}
-
 function editIncrement(btn) {
   const exerciseId = btn.dataset.exercise;
   const ex = CONFIG.EXERCISES.find((e) => e.id === exerciseId);
   const currentInc = getIncrement(exerciseId);
   btn.dataset.editing = "1";
 
-  const btnWidth = btn.offsetWidth;
+  const labelEl = btn.querySelector(".cta-label");
+  const targetEl = labelEl ?? btn;
+  const targetWidth = Math.max(48, targetEl.offsetWidth);
   const input = document.createElement("input");
   input.type = "number";
   input.min = 1;
   input.max = ex?.targetCount ?? 100;
   input.value = currentInc;
   input.className = "counter-edit-input";
-  input.style.width = btnWidth + "px";
-  btn.style.padding = "0";
-  btn.replaceChildren(input);
+  input.style.width = targetWidth + "px";
+  if (labelEl) {
+    labelEl.replaceChildren(input);
+  } else {
+    btn.style.padding = "0";
+    btn.replaceChildren(input);
+  }
   input.focus();
   input.select();
-
-  const { el: liane, flipX: lianeFlipped } = showLianeConfused(btn, 0, 80);
 
   const commit = () => {
     const val = Math.max(
@@ -1735,33 +1771,21 @@ function editIncrement(btn) {
     );
     setIncrement(exerciseId, val);
     delete btn.dataset.editing;
-    btn.style.padding = "";
-    btn.textContent = `+${val}`;
-
-    const img = liane.querySelector(".liane-img");
-    const happyImg = new Image();
-    happyImg.src = "/liane/liane_happy.png";
-    happyImg.alt = "Liane happy";
-    happyImg.className = "liane-img";
-    happyImg.style.cssText =
-      "width:100%;height:100%;object-fit:contain;display:block;transform:scaleX(-1);";
-    const swapToHappy = () => img?.replaceWith(happyImg);
-    if (happyImg.decode) happyImg.decode().then(swapToHappy).catch(swapToHappy);
-    else happyImg.onload = swapToHappy;
-    liane.style.animation =
-      "liane-happy-bounce 0.5s cubic-bezier(0.34,1.56,0.64,1) forwards";
-    setTimeout(() => {
-      liane.style.animation = "liane-fade-out 0.4s ease forwards";
-      liane.addEventListener("animationend", () => liane.remove(), {
-        once: true,
-      });
-    }, 1000);
+    if (labelEl) {
+      labelEl.textContent = `+${val}`;
+    } else {
+      btn.style.padding = "";
+      btn.textContent = `+${val}`;
+    }
   };
   const cancel = () => {
-    liane.remove();
     delete btn.dataset.editing;
-    btn.style.padding = "";
-    btn.textContent = `+${currentInc}`;
+    if (labelEl) {
+      labelEl.textContent = `+${currentInc}`;
+    } else {
+      btn.style.padding = "";
+      btn.textContent = `+${currentInc}`;
+    }
   };
   input.addEventListener("blur", commit);
   input.addEventListener("keydown", (e) => {
@@ -1884,6 +1908,26 @@ function spawnMatchaParticles(btn) {
 }
 
 const _countSaveTimers = new Map();
+// Optimistic completions kept across snapshot replacements until the save lands.
+// Key: `${date}_${person}_${exercise}` → completion record.
+const _pendingOptimistic = new Map();
+
+function _pendingKey(date, person, exercise) {
+  return `${date}_${person}_${exercise}`;
+}
+
+function applyPendingOptimistic() {
+  for (const item of _pendingOptimistic.values()) {
+    const idx = state.completions.findIndex(
+      (c) =>
+        c.date === item.date &&
+        c.person === item.person &&
+        c.exercise === item.exercise,
+    );
+    if (idx >= 0) state.completions[idx] = { ...state.completions[idx], ...item };
+    else state.completions.push(item);
+  }
+}
 
 function handleCountChange(personName, exerciseId, delta) {
   const ex = CONFIG.EXERCISES.find((e) => e.id === exerciseId);
@@ -1893,15 +1937,6 @@ function handleCountChange(personName, exerciseId, delta) {
   const newCount = Math.max(0, Math.min(ex.targetCount, currentCount + delta));
 
   if (newCount === currentCount) {
-    if (delta < 0) {
-      const cardEl = document.getElementById(
-        `card-${personName.replace(/\s+/g, "-")}`,
-      );
-      const decBtn = cardEl?.querySelector(
-        `.counter-btn[data-exercise="${exerciseId}"][data-direction="dec"]`,
-      );
-      if (decBtn) showLianeConfused(decBtn, 2200, 50, true);
-    }
     return;
   }
 
@@ -1914,6 +1949,17 @@ function handleCountChange(personName, exerciseId, delta) {
   );
   const nowCompleted = newCount >= ex.targetCount;
   setCountLocal(personName, exerciseId, state.todayStr, newCount);
+  const optimisticItem = {
+    date: state.todayStr,
+    person: personName,
+    exercise: exerciseId,
+    completed: nowCompleted,
+    completedAt: nowCompleted ? localISOString(new Date()) : null,
+  };
+  _pendingOptimistic.set(
+    _pendingKey(state.todayStr, personName, exerciseId),
+    optimisticItem,
+  );
   if (idx >= 0) {
     state.completions[idx].completed = nowCompleted;
     if (nowCompleted)
@@ -1940,6 +1986,10 @@ function handleCountChange(personName, exerciseId, delta) {
   const counterDisplay = exItem?.querySelector(".counter-display");
   if (counterDisplay)
     counterDisplay.textContent = `${newCount} / ${ex.targetCount}`;
+  if (exItem) {
+    const pct = Math.min(100, Math.round((newCount / ex.targetCount) * 100));
+    exItem.style.setProperty("--pct", `${pct}%`);
+  }
 
   // Sync exercise-item done state
   const wasCompleted = exItem?.classList.contains("exercise-done");
@@ -1952,7 +2002,13 @@ function handleCountChange(personName, exerciseId, delta) {
       !cardEl.classList.contains("completed-all")
     ) {
       cardEl.classList.add("completed-all", "just-completed");
-      cardEl.querySelector(".card-status").textContent = "🎉 All done!";
+      const sub = cardEl.querySelector(".card-substatus");
+      const t = getWorkoutCompletionTime(personName, state.todayStr);
+      if (sub) sub.textContent = t ? `Done at ${t}` : "All done";
+      const menuBtn = cardEl.querySelector(".card-menu-btn");
+      const menuPanel = cardEl.querySelector(".card-menu");
+      if (menuBtn) menuBtn.remove();
+      if (menuPanel) menuPanel.remove();
       if (!cardEl.querySelector(".completion-banner")) {
         const banner = document.createElement("div");
         banner.className = "completion-banner";
@@ -1961,23 +2017,14 @@ function handleCountChange(personName, exerciseId, delta) {
       }
       triggerConfetti(getParticipantColor(state.currentUser));
       setTimeout(() => cardEl.classList.remove("just-completed"), 600);
-    } else {
-      const doneCount = cardEl.querySelectorAll(
-        ".exercise-item.exercise-done",
-      ).length;
-      cardEl.querySelector(".card-status").textContent =
-        `${doneCount}/${CONFIG.EXERCISES.length} completed`;
     }
   } else if (!nowCompleted && wasCompleted) {
     exItem?.classList.remove("exercise-done");
     cardEl.classList.remove("completed-all");
     const banner = cardEl.querySelector(".completion-banner");
     if (banner) banner.remove();
-    const doneCount = cardEl.querySelectorAll(
-      ".exercise-item.exercise-done",
-    ).length;
-    cardEl.querySelector(".card-status").textContent =
-      `${doneCount}/${CONFIG.EXERCISES.length} completed`;
+    const sub = cardEl.querySelector(".card-substatus");
+    if (sub) sub.textContent = "";
   }
 
   // Debounced Firestore write
@@ -1990,19 +2037,27 @@ function handleCountChange(personName, exerciseId, delta) {
       _countSaveTimers.delete(timerKey);
       try {
         await saveCompletion(personName, exerciseId, nowCompleted);
+        _pendingOptimistic.delete(
+          _pendingKey(state.todayStr, personName, exerciseId),
+        );
         if (nowCompleted) {
           const streak = calcStreak(personName);
-          const streakPill = cardEl.querySelector(".streak-pill");
+          const streakEl = cardEl.querySelector(".card-streak");
           if (streak > 0) {
-            if (!streakPill) {
-              const pill = document.createElement("div");
-              pill.className = "streak-pill";
-              pill.textContent = `🔥 ${streak}-day streak`;
-              cardEl
-                .querySelector(".card-status")
-                .insertAdjacentElement("afterend", pill);
+            const innerHTML = `
+              <span class="card-streak-flame" aria-hidden="true">🔥</span>
+              <span class="card-streak-num">${streak}</span>
+              <span class="card-streak-label">day streak</span>`;
+            if (!streakEl) {
+              const el = document.createElement("div");
+              el.className = "card-streak";
+              el.setAttribute("aria-label", `${streak}-day streak`);
+              el.innerHTML = innerHTML;
+              const identity = cardEl.querySelector(".card-identity");
+              identity?.insertAdjacentElement("afterend", el);
             } else {
-              streakPill.textContent = `🔥 ${streak}-day streak`;
+              streakEl.setAttribute("aria-label", `${streak}-day streak`);
+              streakEl.innerHTML = innerHTML;
             }
           }
         }
@@ -2748,7 +2803,7 @@ function renderHeader() {
     avatarEl.style.overflow = "";
     avatarEl.textContent = getInitials(state.currentUser.name);
   }
-  document.getElementById("header-name").textContent = state.currentUser.name;
+  document.getElementById("header-name").textContent = "Profile";
 }
 
 // ============================================================

@@ -890,10 +890,7 @@ body.group-glory-day #history-container {
 }
 
 .workout-card.is-me {
-  border-color: var(--accent);
-  box-shadow:
-    0 0 0 1px var(--accent-glow),
-    var(--shadow);
+  border-color: var(--border-bright);
 }
 
 .workout-card.completed-all {
@@ -902,16 +899,26 @@ body.group-glory-day #history-container {
 }
 
 .card-header {
-  display: flex;
+  --ring-color: var(--accent, #00d9a3);
+  position: relative;
+  display: grid;
+  grid-template-columns: 1fr auto auto;
   align-items: center;
-  gap: 12px;
-  padding: 14px 16px;
+  column-gap: 12px;
+  padding: 16px 14px 18px 18px;
   border-bottom: 1px solid var(--border);
 }
 
+.card-identity {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  min-width: 0;
+}
+
 .card-avatar {
-  width: 44px;
-  height: 44px;
+  width: 48px;
+  height: 48px;
   border-radius: 50%;
   display: flex;
   align-items: center;
@@ -920,45 +927,299 @@ body.group-glory-day #history-container {
   font-weight: 900;
   color: white;
   flex-shrink: 0;
+  box-shadow:
+    0 0 0 2px var(--bg-card),
+    0 0 0 6px var(--ring-color),
+    0 4px 14px -6px color-mix(in oklch, var(--ring-color) 70%, transparent);
+  transition: transform 0.3s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.workout-card.is-me .card-avatar {
+  transform: rotate(-2deg);
 }
 
 .card-info {
-  flex: 1;
+  display: flex;
+  flex-direction: column;
   min-width: 0;
+  gap: 2px;
 }
 
 .card-name {
-  font-size: 1rem;
+  font-size: 1.25rem;
   font-weight: 800;
-  line-height: 1.2;
+  line-height: 1.1;
+  letter-spacing: -0.02em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
 }
 
-.card-status {
+.card-substatus {
   font-size: 0.78rem;
   color: var(--text-secondary);
-  margin-top: 2px;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.01em;
+  min-height: 0.95rem;
+}
+
+.card-substatus:empty {
+  display: none;
+}
+
+/* Streak: tight badge, flame + number on one row, label beneath */
+.card-streak {
+  display: grid;
+  grid-template-columns: auto auto;
+  align-items: center;
+  column-gap: 4px;
+  padding: 4px 4px 4px 10px;
+  border-left: 1px solid rgba(255, 255, 255, 0.07);
+  line-height: 1;
+  user-select: none;
+}
+
+.card-streak-flame {
+  grid-row: 1 / span 2;
+  font-size: 1.05rem;
+  filter: drop-shadow(0 0 5px rgba(255, 209, 102, 0.3));
+}
+
+.card-streak-num {
+  font-size: 1.3rem;
+  font-weight: 900;
+  color: var(--warning, #ffd166);
+  letter-spacing: -0.04em;
+  font-variant-numeric: tabular-nums;
+  line-height: 0.95;
+  align-self: end;
+}
+
+.card-streak-label {
+  font-size: 0.52rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--text-secondary);
+  margin-top: 3px;
+  align-self: start;
+}
+
+/* Corner menu button + popover */
+.card-menu-btn {
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  font-size: 1.4rem;
+  line-height: 1;
+  width: 42px;
+  height: 42px;
+  border-radius: 12px;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  opacity: 0.9;
+  filter: saturate(0.9);
+  transition:
+    transform 0.32s cubic-bezier(0.22, 1, 0.36, 1),
+    opacity 0.2s ease,
+    filter 0.2s ease,
+    background 0.2s ease,
+    border-color 0.2s ease;
+  font-family: inherit;
+  padding: 0;
+  align-self: center;
+}
+
+.card-menu-btn:hover,
+.card-menu-btn[aria-expanded="true"] {
+  opacity: 1;
+  filter: saturate(1);
+  background: rgba(255, 255, 255, 0.07);
+  border-color: rgba(255, 255, 255, 0.22);
+  transform: rotate(-6deg) scale(1.08);
+}
+
+.card-menu-btn:active {
+  transform: scale(0.94);
+}
+
+.card-menu {
+  position: absolute;
+  top: 42px;
+  right: 12px;
+  min-width: 220px;
+  background: #1a1f29;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 12px;
+  padding: 6px;
+  box-shadow:
+    0 12px 28px -8px rgba(0, 0, 0, 0.6),
+    0 4px 10px -4px rgba(0, 0, 0, 0.4);
+  z-index: 20;
+  animation: card-menu-pop 0.18s cubic-bezier(0.22, 1, 0.36, 1);
+  transform-origin: top right;
+}
+
+@keyframes card-menu-pop {
+  from {
+    opacity: 0;
+    transform: scale(0.92) translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
+.card-menu-item {
+  display: grid;
+  grid-template-columns: 24px 1fr auto;
+  align-items: center;
+  width: 100%;
+  gap: 10px;
+  padding: 10px 12px;
+  background: none;
+  border: none;
+  color: var(--text-primary);
+  font-size: 0.88rem;
+  font-weight: 600;
+  text-align: left;
+  border-radius: 8px;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  transition: background 0.12s;
+  font-family: inherit;
+}
+
+.card-menu-item:not(:disabled):hover,
+.card-menu-item:not(:disabled):active {
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.card-menu-item:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.card-menu-item .menu-icon {
+  font-size: 1.05rem;
+  line-height: 1;
+}
+
+.card-menu-item .menu-label {
+  line-height: 1;
+}
+
+.card-menu-item .menu-meta {
+  font-size: 0.7rem;
+  color: var(--text-muted);
+  font-weight: 500;
+  line-height: 1;
+}
+
+/* Off-day banner across top of card */
+.off-day-banner {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: -16px -18px 12px;
+  padding: 9px 16px;
+  font-size: 0.82rem;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+  border-bottom: 1px solid transparent;
+}
+
+.off-day-banner.sick {
+  background: linear-gradient(
+    90deg,
+    rgba(255, 209, 102, 0.18),
+    rgba(255, 209, 102, 0.06)
+  );
+  color: var(--warning, #ffd166);
+  border-bottom-color: rgba(255, 209, 102, 0.18);
+}
+
+.off-day-banner.rest {
+  background: linear-gradient(
+    90deg,
+    rgba(77, 171, 247, 0.18),
+    rgba(77, 171, 247, 0.06)
+  );
+  color: #4dabf7;
+  border-bottom-color: rgba(77, 171, 247, 0.18);
+}
+
+.off-day-banner .banner-icon {
+  font-size: 1.05rem;
+}
+
+.off-day-banner .banner-text {
+  flex: 1;
+}
+
+.banner-undo {
+  background: none;
+  border: 1px solid currentColor;
+  color: inherit;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  font-size: 0.7rem;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  opacity: 0.7;
+  transition: opacity 0.15s;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+  padding: 0;
+  font-family: inherit;
+}
+
+.banner-undo:hover {
+  opacity: 1;
 }
 
 /* Exercise List */
 .exercise-list {
-  padding: 0px 0;
+  padding: 4px 0;
+  display: flex;
+  flex-direction: column;
 }
 
 .exercise-item {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 12px 16px;
-  transition: var(--transition);
+  --pct: 0%;
+  display: grid;
+  grid-template-rows: auto 1fr;
+  gap: 8px;
+  padding: 12px 14px;
+  transition:
+    grid-template-rows 0.42s cubic-bezier(0.22, 1, 0.36, 1),
+    padding 0.42s cubic-bezier(0.22, 1, 0.36, 1),
+    background 0.25s ease,
+    transform 0.32s cubic-bezier(0.22, 1, 0.36, 1);
   position: relative;
+  border-radius: 12px;
+  margin: 2px 6px;
+  transform-origin: center top;
 }
 
 .exercise-item:not(:last-child) {
   border-bottom: 1px solid rgba(255, 255, 255, 0.04);
 }
 
+.exercise-meta {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
 .exercise-name {
-  font-size: 0.925rem;
+  font-size: 0.95rem;
   font-weight: 700;
   color: var(--text-primary);
   flex: 1;
@@ -966,77 +1227,194 @@ body.group-glory-day #history-container {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  letter-spacing: -0.01em;
 }
 
 .exercise-emoji {
-  font-size: 1.3rem;
+  font-size: 1.35rem;
   flex-shrink: 0;
 }
 
+/* Done state: collapse the CTA row entirely, keep just the meta line */
 .exercise-item.exercise-done {
-  background: rgba(0, 217, 163, 0.07);
+  background: rgba(0, 217, 163, 0.06);
+  grid-template-rows: auto 0fr;
+  gap: 0;
+  padding-top: 10px;
+  padding-bottom: 10px;
+  animation: none;
+  transform: scale(1);
+  box-shadow: inset 0 0 0 1px rgba(0, 217, 163, 0.15);
+}
+
+.exercise-item.exercise-done .exercise-cta-row {
+  overflow: hidden;
+  opacity: 0;
+  transform: translateY(-4px);
+  pointer-events: none;
 }
 
 .exercise-item.exercise-done .exercise-name {
   color: var(--success);
 }
 
-.exercise-counter {
-  display: flex;
+.exercise-item.exercise-done .exercise-meta::before {
+  content: "✓";
+  color: var(--success);
+  font-weight: 900;
+  font-size: 0.95rem;
+  margin-right: -2px;
+}
+
+/* Undo: hidden unless the row is done */
+.exercise-undo {
+  display: none;
+  background: none;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: var(--text-secondary);
+  border-radius: 8px;
+  width: 32px;
+  height: 28px;
+  font-size: 0.95rem;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  flex-shrink: 0;
+  transition: var(--transition);
+  font-family: inherit;
+  padding: 0;
+  line-height: 1;
+}
+
+.exercise-undo:active {
+  background: rgba(255, 255, 255, 0.06);
+  transform: scale(0.94);
+}
+
+.exercise-item.exercise-done .exercise-undo {
+  display: inline-flex;
   align-items: center;
+  justify-content: center;
+  animation: undo-fade-in 0.32s ease both;
+}
+
+@keyframes undo-fade-in {
+  from {
+    opacity: 0;
+    transform: scale(0.6);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+/* CTA row: big +N button is the hero, dec/gear are quiet sidekicks */
+.exercise-cta-row {
+  display: flex;
+  align-items: stretch;
   gap: 6px;
-  position: relative;
+  min-height: 0;
+  overflow: visible;
+  opacity: 1;
+  transform: translateY(0);
+  transition:
+    opacity 0.25s ease,
+    transform 0.32s cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 .counter-btn {
-  border-radius: 6px;
-  padding: 3px 10px;
-  font-size: 0.75rem;
-  font-weight: 700;
   cursor: pointer;
-  flex-shrink: 0;
   -webkit-tap-highlight-color: transparent;
   transition: var(--transition);
-  line-height: 1.6;
+  font-weight: 700;
+  font-family: inherit;
 }
 
 .counter-dec {
-  background: rgba(255, 255, 255, 0.06);
-  border: 1px solid var(--border-bright);
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.08);
   color: var(--text-secondary);
+  border-radius: 10px;
+  width: 42px;
+  font-size: 1.1rem;
+  line-height: 1;
+  flex-shrink: 0;
 }
 
 .counter-dec:not(:disabled):active {
-  background: rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.08);
+  transform: scale(0.96);
 }
 
+/* The hero: full-width +N button with progress fill underneath */
 .counter-inc {
-  width: 50px;
-  text-align: center;
-  background: rgba(0, 217, 163, 0.15);
-  border: 1px solid rgba(0, 217, 163, 0.5);
+  position: relative;
+  flex: 1;
+  min-height: 46px;
+  border-radius: 12px;
+  background: rgba(0, 217, 163, 0.08);
+  border: 1px solid rgba(0, 217, 163, 0.32);
   color: var(--success);
+  overflow: hidden;
+  isolation: isolate;
+  font-size: 1.05rem;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.counter-inc .cta-fill {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    90deg,
+    rgba(0, 217, 163, 0.55) 0%,
+    rgba(0, 217, 163, 0.32) 100%
+  );
+  transform-origin: left center;
+  transform: scaleX(calc(var(--pct, 0%) / 100%));
+  transition: transform 0.55s cubic-bezier(0.22, 1, 0.36, 1);
+  z-index: -1;
+  border-right: 1px solid rgba(0, 217, 163, 0.55);
+}
+
+.counter-inc .cta-label {
+  position: relative;
+  text-shadow: 0 1px 0 rgba(0, 0, 0, 0.18);
 }
 
 .counter-inc:not(:disabled):active {
-  background: rgba(0, 217, 163, 0.25);
+  transform: scale(0.985);
+  background: rgba(0, 217, 163, 0.18);
+}
+
+.counter-inc:disabled {
+  opacity: 0.5;
 }
 
 .counter-settings-btn {
-  background: none;
-  border: none;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.1);
   color: var(--text-secondary);
-  font-size: 1rem;
-  width: 30px;
-  height: 30px;
-  margin-left: -2px;
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  padding: 0 10px;
+  height: auto;
   display: flex;
   align-items: center;
   justify-content: center;
   cursor: pointer;
   -webkit-tap-highlight-color: transparent;
-  transition: color 0.15s;
+  transition: var(--transition);
   flex-shrink: 0;
+  opacity: 0.85;
+  border-radius: 10px;
+  font-family: inherit;
+  text-transform: uppercase;
 }
 
 .counter-settings-btn:not(:disabled):hover,
@@ -1078,81 +1456,6 @@ body.group-glory-day #history-container {
 .counter-edit-input::-webkit-outer-spin-button,
 .counter-edit-input::-webkit-inner-spin-button {
   -webkit-appearance: none;
-}
-
-/* Liane confused popup */
-@keyframes liane-pop-in {
-  0% {
-    transform: translateX(12px) scale(0.85);
-    opacity: 0;
-  }
-  60% {
-    transform: translateX(-3px) scale(1.05);
-    opacity: 1;
-  }
-  100% {
-    transform: translateX(0) scale(1);
-    opacity: 1;
-  }
-}
-@keyframes liane-float-idle {
-  0%,
-  100% {
-    transform: translateY(0px) rotate(-2deg);
-  }
-  50% {
-    transform: translateY(-4px) rotate(2deg);
-  }
-}
-@keyframes liane-fade-out {
-  0% {
-    transform: translateX(0) scale(1);
-    opacity: 1;
-  }
-  40% {
-    transform: translateX(4px) scale(0.9);
-    opacity: 0.6;
-  }
-  100% {
-    transform: translateX(14px) scale(0.7);
-    opacity: 0;
-  }
-}
-@keyframes liane-ghost {
-  0% {
-    transform: translateY(18px);
-    opacity: 0;
-  }
-  25% {
-    transform: translateY(6px);
-    opacity: 1;
-  }
-  80% {
-    transform: translateY(-4px);
-    opacity: 1;
-  }
-  100% {
-    transform: translateY(-20px);
-    opacity: 0;
-  }
-}
-
-@keyframes liane-happy-bounce {
-  0% {
-    transform: scale(1) translateY(0);
-  }
-  30% {
-    transform: scale(1.22) translateY(-8px);
-  }
-  55% {
-    transform: scale(0.94) translateY(0);
-  }
-  75% {
-    transform: scale(1.1) translateY(-4px);
-  }
-  100% {
-    transform: scale(1) translateY(0);
-  }
 }
 
 /* Completion celebration */
@@ -1507,60 +1810,6 @@ body.group-glory-day #history-container {
   background: var(--border);
   margin: 0 12px;
   flex-shrink: 0;
-}
-
-/* Streak pill on today card */
-.streak-pill {
-  display: inline-block;
-  font-size: 0.72rem;
-  font-weight: 700;
-  padding: 2px 8px;
-  border-radius: 100px;
-  background: rgba(255, 209, 102, 0.12);
-  color: var(--warning);
-  margin-top: 4px;
-}
-
-/* Sick / rest day toggle buttons */
-.off-day-btns {
-  display: flex;
-  gap: 6px;
-  margin-top: 6px;
-  flex-wrap: wrap;
-}
-
-.sick-day-btn,
-.rest-day-btn {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  padding: 3px 10px;
-  border-radius: 100px;
-  font-size: 0.72rem;
-  font-weight: 700;
-  background: rgba(90, 90, 128, 0.12);
-  border: 1px solid rgba(90, 90, 128, 0.25);
-  color: var(--text-muted);
-  cursor: pointer;
-  transition: var(--transition);
-}
-
-.sick-day-btn:disabled,
-.rest-day-btn:disabled {
-  opacity: 0.4;
-  cursor: not-allowed;
-}
-
-.sick-day-btn.active {
-  background: rgba(255, 209, 102, 0.15);
-  border-color: rgba(255, 209, 102, 0.4);
-  color: var(--warning);
-}
-
-.rest-day-btn.active {
-  background: rgba(77, 171, 247, 0.18);
-  border-color: rgba(77, 171, 247, 0.45);
-  color: #4dabf7;
 }
 
 .workout-card.sick-today:not(.completed-all) {
