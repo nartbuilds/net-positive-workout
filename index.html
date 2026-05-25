@@ -190,10 +190,12 @@
 
         <!-- TODAY VIEW -->
         <section class="view active" id="view-today">
-          <div class="view-header">
-            <h2 class="view-title">Today's Workout</h2>
-            <p class="view-subtitle" id="today-date-label"></p>
-            <div class="deadline-badge">⏰ Resets at midnight</div>
+          <div class="view-header today-header">
+            <div class="date-stamp">
+              <span class="date-stamp-day" id="today-weekday"></span>
+              <span class="date-stamp-rest" id="today-monthday"></span>
+            </div>
+            <div class="deadline-badge" id="deadline-countdown">⏰ —</div>
           </div>
           <div id="today-cards-container">
             <!-- Skeleton while loading -->

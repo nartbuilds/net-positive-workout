@@ -1328,12 +1328,16 @@ function renderTodayView() {
   container.innerHTML = "";
 
   const d = new Date();
-  document.getElementById("today-date-label").textContent =
-    d.toLocaleDateString("en-US", {
-      weekday: "long",
-      month: "long",
+  const weekdayEl = document.getElementById("today-weekday");
+  const monthdayEl = document.getElementById("today-monthday");
+  if (weekdayEl)
+    weekdayEl.textContent = d.toLocaleDateString("en-US", { weekday: "long" });
+  if (monthdayEl)
+    monthdayEl.textContent = d.toLocaleDateString("en-US", {
+      month: "short",
       day: "numeric",
     });
+  updateDeadlineCountdown();
 
   const visibleParticipants = state.currentUser
     ? state.participants.filter((p) => p.name === state.currentUser.name)
@@ -1703,6 +1707,48 @@ function setIncrement(exerciseId, value) {
     stored[exerciseId] = value;
     localStorage.setItem("np_increments", JSON.stringify(stored));
   } catch {}
+}
+
+function updateDeadlineCountdown() {
+  const el = document.getElementById("deadline-countdown");
+  if (!el) return;
+  const now = new Date();
+  const midnight = new Date(now);
+  midnight.setHours(24, 0, 0, 0);
+  const msLeft = midnight - now;
+  const minsLeft = Math.max(0, Math.round(msLeft / 60000));
+  const hoursLeft = Math.floor(minsLeft / 60);
+  const restMins = minsLeft % 60;
+
+  let text;
+  let tier;
+  if (minsLeft <= 0) {
+    text = "⏰ Resetting…";
+    tier = "critical";
+  } else if (minsLeft < 60) {
+    text = `🚨 ${minsLeft} min${minsLeft === 1 ? "" : "s"} left!`;
+    tier = "critical";
+  } else if (hoursLeft < 3) {
+    text = `⏰ ${hoursLeft}h ${restMins}m left`;
+    tier = "warning";
+  } else {
+    text = `⏰ ${hoursLeft}h left`;
+    tier = "calm";
+  }
+
+  el.textContent = text;
+  el.classList.remove(
+    "countdown-calm",
+    "countdown-warning",
+    "countdown-critical",
+  );
+  el.classList.add(`countdown-${tier}`);
+}
+
+let _deadlineTimer = null;
+function startDeadlineTicker() {
+  if (_deadlineTimer) return;
+  _deadlineTimer = setInterval(updateDeadlineCountdown, 60_000);
 }
 
 function formatIncLabel(inc, unit) {
@@ -2816,6 +2862,7 @@ function renderCurrentView() {
     return;
   }
   if (document.getElementById("app").classList.contains("hidden")) return;
+  startDeadlineTicker();
   const v = document.querySelector(".nav-item.active")?.dataset.view;
   switch (v) {
     case "today":
