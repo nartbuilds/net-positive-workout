@@ -2145,21 +2145,31 @@ function renderLeaderboard() {
   if (potAmount) potAmount.textContent = `$${groupPot}`;
   const potCard = document.getElementById("lb-pot-card");
   if (potCard) potCard.classList.toggle("is-empty", groupPot === 0);
-  const dayStamp = document.getElementById("lb-day-of-challenge");
-  if (dayStamp) {
-    let label = `${daysRemaining} DAYS LEFT`;
-    if (CONFIG.CHALLENGE_START_DATE) {
-      const startDate = new Date(CONFIG.CHALLENGE_START_DATE + "T00:00:00");
-      if (todayMidnight >= startDate) {
-        const dayOf = Math.floor((todayMidnight - startDate) / 86400000) + 1;
-        const totalDays = Math.max(
-          1,
-          Math.round((endDate - startDate) / 86400000) + 1,
-        );
-        label = `DAY ${dayOf} / ${totalDays}`;
-      }
+  const progress = document.getElementById("lb-progress");
+  let dayOf = null;
+  let totalDays = null;
+  if (CONFIG.CHALLENGE_START_DATE) {
+    const startDate = new Date(CONFIG.CHALLENGE_START_DATE + "T00:00:00");
+    if (todayMidnight >= startDate) {
+      dayOf = Math.floor((todayMidnight - startDate) / 86400000) + 1;
+      totalDays = Math.max(
+        1,
+        Math.round((endDate - startDate) / 86400000) + 1,
+      );
     }
-    dayStamp.textContent = label;
+  }
+  if (progress) {
+    if (dayOf != null) {
+      progress.hidden = false;
+      const pct = Math.min(100, Math.max(0, (dayOf / totalDays) * 100));
+      document.getElementById("lb-progress-fill").style.width = `${pct}%`;
+      document.getElementById("lb-progress-now").textContent =
+        `Day ${dayOf} · ${Math.round(pct)}%`;
+      document.getElementById("lb-progress-total").textContent =
+        `${totalDays - dayOf} days left`;
+    } else {
+      progress.hidden = true;
+    }
   }
 
   const data = state.participants.map((p) => {
@@ -2354,6 +2364,7 @@ function renderLeaderboard() {
     `;
     container.appendChild(ledger);
   }
+
 }
 
 // ============================================================

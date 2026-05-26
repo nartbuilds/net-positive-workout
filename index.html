@@ -209,7 +209,15 @@
           <div class="view-header today-header">
             <div class="date-stamp">
               <span class="date-stamp-day">Leaderboard</span>
-              <span class="date-stamp-rest" id="lb-day-of-challenge"></span>
+            </div>
+          </div>
+          <div class="lb-progress" id="lb-progress" hidden>
+            <div class="lb-progress-head">
+              <span class="lb-progress-now" id="lb-progress-now">Day 0</span>
+              <span class="lb-progress-total" id="lb-progress-total">of 0</span>
+            </div>
+            <div class="lb-progress-track">
+              <div class="lb-progress-fill" id="lb-progress-fill"></div>
             </div>
           </div>
           <div class="lb-ticker" id="lb-pot-card">
@@ -266,7 +274,7 @@
           </div>
 
           <!-- Total pot -->
-          <div class="total-pot" id="total-pot-display">
+          <div class="total-pot">
             <div class="pot-amount" id="total-pot-amount">$0</div>
             <div class="pot-label">Total group pot (combined fines)</div>
           </div>
