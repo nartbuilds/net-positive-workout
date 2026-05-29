@@ -2395,7 +2395,10 @@ function getWorkoutTimesChartData() {
     series: state.participants.map((p) => {
       const color = getParticipantColor(p);
       const points = days.map((dateStr) => {
-        if (!isWorkoutComplete(p.name, dateStr)) return null;
+        if (!isWorkoutComplete(p.name, dateStr)) {
+          // Off days (rest/sick) don't break the line; genuine misses do.
+          return isOffDay(p.name, dateStr) ? "off" : null;
+        }
         const completions = state.completions.filter(
           (c) =>
             c.date === dateStr &&
@@ -2423,10 +2426,14 @@ function getWorkoutTimesChartData() {
 
 function renderWorkoutTimesChart() {
   const { days, series } = getWorkoutTimesChartData();
-  const hasAnyData = series.some((s) => s.points.some((p) => p !== null));
+  const hasAnyData = series.some((s) =>
+    s.points.some((p) => typeof p === "number"),
+  );
 
   // Adaptive time range: zoom to actual data with padding, min 3h span
-  const allMins = series.flatMap((s) => s.points.filter((p) => p !== null));
+  const allMins = series.flatMap((s) =>
+    s.points.filter((p) => typeof p === "number"),
+  );
   let TMIN, TMAX;
   if (allMins.length) {
     TMIN = Math.max(0, Math.floor((Math.min(...allMins) - 45) / 60) * 60);
@@ -2500,14 +2507,15 @@ function renderWorkoutTimesChart() {
         run = [];
       };
       for (let i = 0; i < s.points.length; i++) {
-        if (s.points[i] !== null) run.push({ i, m: s.points[i] });
-        else flush();
+        const p = s.points[i];
+        if (typeof p === "number") run.push({ i, m: p });
+        else if (p === null) flush(); // genuine miss breaks the line; "off" days don't
       }
       flush();
 
       for (let i = 0; i < s.points.length; i++) {
         const mins = s.points[i];
-        if (mins === null) continue;
+        if (typeof mins !== "number") continue;
         const hh = String(Math.floor(mins / 60)).padStart(2, "0");
         const mm = String(mins % 60).padStart(2, "0");
         seriesSVG += `<circle cx="${xFor(i)}" cy="${yFor(mins)}" r="3.5" fill="${s.color}" stroke="#0a0a0f" stroke-width="1.5"><title>${s.name}: ${hh}:${mm}</title></circle>`;
