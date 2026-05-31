@@ -1782,92 +1782,30 @@ body.group-glory-day #history-container {
   transition: width 0.6s ease-out;
 }
 
-/* ---- TICKER POT ---- */
-.lb-ticker {
-  position: relative;
-  margin: 0 -4px 18px; /* break out of the wall padding for edge-to-edge */
-  padding: 12px 18px;
-  background:
-    repeating-linear-gradient(
-      90deg,
-      transparent 0 24px,
-      rgba(0, 0, 0, 0.18) 24px 25px
-    ),
-    linear-gradient(
-      90deg,
-      #b87913 0%,
-      #f4c042 30%,
-      #fce38a 50%,
-      #f4c042 70%,
-      #b87913 100%
-    );
-  border-top: 1px solid rgba(255, 240, 200, 0.45);
-  border-bottom: 1px solid rgba(60, 30, 0, 0.55);
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.35),
-    inset 0 -2px 6px rgba(60, 30, 0, 0.4),
-    0 8px 22px -14px rgba(255, 178, 56, 0.75);
-  overflow: hidden;
-  font-family: var(--font-mono);
-}
-.lb-ticker-bg {
-  position: absolute;
-  inset: 0;
-  background: linear-gradient(
-    90deg,
-    transparent 0%,
-    rgba(255, 255, 255, 0.18) 50%,
-    transparent 100%
-  );
-  transform: translateX(-100%);
-  animation: lb-ticker-shine 4.5s ease-in-out infinite;
-  pointer-events: none;
-}
-@keyframes lb-ticker-shine {
-  0%, 30% { transform: translateX(-100%); }
-  70%, 100% { transform: translateX(100%); }
-}
-.lb-ticker-row {
-  position: relative;
+/* ---- GROUP POT (quiet number) ---- */
+.pot-stat {
   display: flex;
+  flex-direction: column;
   align-items: center;
-  justify-content: center;
-  gap: 14px;
-  color: #2a1a05;
+  gap: 2px;
+  margin: 26px 0 40px;
 }
-.lb-ticker-pip {
-  width: 8px;
-  height: 8px;
-  background: #2a1a05;
-  border-radius: 50%;
-  box-shadow: 0 0 0 2px rgba(255, 240, 200, 0.5);
-  flex-shrink: 0;
-}
-.lb-ticker-label {
-  font-size: 0.7rem;
+.pot-stat-amount {
+  font-size: clamp(2.6rem, 14vw, 3.4rem);
   font-weight: 800;
-  letter-spacing: 0.22em;
-  text-transform: uppercase;
-  opacity: 0.75;
-}
-.lb-ticker-amount {
-  font-size: clamp(1.5rem, 6vw, 2rem);
-  font-weight: 900;
-  letter-spacing: -0.04em;
+  letter-spacing: -0.05em;
   line-height: 1;
-  text-shadow: 0 1px 0 rgba(255, 255, 255, 0.35);
+  color: var(--text-primary);
+  font-variant-numeric: tabular-nums;
 }
-.lb-ticker.is-empty {
-  background: var(--bg-secondary);
-  border-color: var(--border);
-  box-shadow: none;
+.pot-stat-label {
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.24em;
+  text-transform: uppercase;
+  color: var(--text-muted);
 }
-.lb-ticker.is-empty .lb-ticker-row { color: var(--text-secondary); }
-.lb-ticker.is-empty .lb-ticker-pip {
-  background: var(--text-muted);
-  box-shadow: none;
-}
-.lb-ticker.is-empty .lb-ticker-bg { display: none; }
+.pot-stat.is-empty .pot-stat-amount { color: var(--text-muted); }
 
 /* ---- PODIUM STAGE ---- */
 #lb-podium { margin-bottom: 22px; }

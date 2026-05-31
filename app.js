@@ -2120,6 +2120,27 @@ function handleCountChange(personName, exerciseId, delta) {
 // RENDER: LEADERBOARD
 // ============================================================
 
+// Roll a dollar figure up/down to a new value. Skips the animation
+// when the value is unchanged or the user prefers reduced motion.
+function animateCount(el, value) {
+  const prev = Number(el.dataset.value);
+  el.dataset.value = value;
+  const reduce = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
+  if (!Number.isFinite(prev) || prev === value || reduce) {
+    el.textContent = `$${value}`;
+    return;
+  }
+  const start = performance.now();
+  const dur = 650;
+  const step = (now) => {
+    const t = Math.min(1, (now - start) / dur);
+    const eased = 1 - Math.pow(1 - t, 3); // easeOutCubic
+    el.textContent = `$${Math.round(prev + (value - prev) * eased)}`;
+    if (t < 1) requestAnimationFrame(step);
+  };
+  requestAnimationFrame(step);
+}
+
 function renderLeaderboard() {
   const container = document.getElementById("leaderboard-container");
   container.innerHTML = "";
@@ -2142,7 +2163,7 @@ function renderLeaderboard() {
 
   // Magazine-style header: dedicated pot card + day-of-challenge stamp
   const potAmount = document.getElementById("lb-pot-amount");
-  if (potAmount) potAmount.textContent = `$${groupPot}`;
+  if (potAmount) animateCount(potAmount, groupPot);
   const potCard = document.getElementById("lb-pot-card");
   if (potCard) potCard.classList.toggle("is-empty", groupPot === 0);
   const progress = document.getElementById("lb-progress");
