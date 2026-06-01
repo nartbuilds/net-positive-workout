@@ -1406,11 +1406,19 @@ function renderTodayView() {
       const undoHTML = isMe
         ? `<button class="exercise-undo" data-person="${participant.name}" data-exercise="${ex.id}" title="Undo — mark not done" aria-label="Undo">↺</button>`
         : "";
+      const displayName = isMe ? getExerciseName(ex.id) : ex.name;
+      const noteText = isMe ? getExerciseNote(ex.id) : "";
+      const emojiHTML = isMe
+        ? `<span class="exercise-emoji exercise-emoji-edit" data-exercise="${ex.id}" title="Rename / add a note (only on your device)" role="button" tabindex="0">${ex.emoji}</span>`
+        : `<span class="exercise-emoji">${ex.emoji}</span>`;
       return `
         <div class="exercise-item${done ? " exercise-done" : ""}" style="--pct:${pct}%">
           <div class="exercise-meta">
-            <span class="exercise-emoji">${ex.emoji}</span>
-            <span class="exercise-name">${ex.name}</span>
+            ${emojiHTML}
+            <span class="exercise-label">
+              <span class="exercise-name">${displayName}</span>
+              ${noteText ? `<span class="exercise-note">${noteText}</span>` : ""}
+            </span>
             ${metaCounter}
             ${undoHTML}
           </div>
@@ -1509,6 +1517,21 @@ function renderTodayView() {
       });
       card.querySelectorAll(".counter-display").forEach((span) => {
         span.addEventListener("click", () => editCountInline(span));
+      });
+      card.querySelectorAll(".exercise-emoji-edit").forEach((emojiEl) => {
+        const openEdit = () => {
+          const labelEl = emojiEl
+            .closest(".exercise-meta")
+            ?.querySelector(".exercise-label");
+          if (labelEl) editExerciseDetails(labelEl, emojiEl.dataset.exercise);
+        };
+        emojiEl.addEventListener("click", openEdit);
+        emojiEl.addEventListener("keydown", (e) => {
+          if (e.key === "Enter" || e.key === " ") {
+            e.preventDefault();
+            openEdit();
+          }
+        });
       });
       card.querySelectorAll(".exercise-undo").forEach((undoBtn) => {
         undoBtn.addEventListener("click", () => {
@@ -1710,6 +1733,46 @@ function setIncrement(exerciseId, value) {
   } catch {}
 }
 
+// Device-local per-exercise customization (name override + personal note).
+// Stored only in localStorage — never synced to Firestore, never seen by
+// other participants. Keyed by exercise id: { squats: { name, note } }.
+function getExerciseCustom(exerciseId) {
+  try {
+    const stored = JSON.parse(localStorage.getItem("np_ex_custom") || "{}");
+    return stored[exerciseId] || {};
+  } catch {
+    return {};
+  }
+}
+
+function getExerciseName(exerciseId) {
+  const custom = getExerciseCustom(exerciseId).name;
+  if (custom && custom.trim()) return custom.trim();
+  return CONFIG.EXERCISES.find((e) => e.id === exerciseId)?.name ?? exerciseId;
+}
+
+function getExerciseNote(exerciseId) {
+  const note = getExerciseCustom(exerciseId).note;
+  return note && note.trim() ? note.trim() : "";
+}
+
+function setExerciseCustom(exerciseId, { name, note }) {
+  try {
+    const stored = JSON.parse(localStorage.getItem("np_ex_custom") || "{}");
+    const defaultName = CONFIG.EXERCISES.find(
+      (e) => e.id === exerciseId,
+    )?.name;
+    const entry = {};
+    // Only persist a name override when it actually differs from the default.
+    if (name && name.trim() && name.trim() !== defaultName)
+      entry.name = name.trim();
+    if (note && note.trim()) entry.note = note.trim();
+    if (Object.keys(entry).length) stored[exerciseId] = entry;
+    else delete stored[exerciseId];
+    localStorage.setItem("np_ex_custom", JSON.stringify(stored));
+  } catch {}
+}
+
 function updateDeadlineCountdown() {
   const el = document.getElementById("deadline-countdown");
   if (!el) return;
@@ -1903,6 +1966,70 @@ function editCountInline(span) {
       input.replaceWith(newSpan);
       newSpan.addEventListener("click", () => editCountInline(newSpan));
     }
+  });
+}
+
+function editExerciseDetails(labelEl, exerciseId) {
+  const ex = CONFIG.EXERCISES.find((e) => e.id === exerciseId);
+  const currentName = getExerciseName(exerciseId);
+  const currentNote = getExerciseNote(exerciseId);
+
+  const form = document.createElement("div");
+  form.className = "exercise-edit-form";
+
+  const nameInput = document.createElement("input");
+  nameInput.type = "text";
+  nameInput.className = "exercise-edit-input ex-edit-name";
+  nameInput.value = currentName;
+  nameInput.placeholder = ex?.name ?? "Exercise name";
+  nameInput.maxLength = 40;
+
+  const noteInput = document.createElement("input");
+  noteInput.type = "text";
+  noteInput.className = "exercise-edit-input ex-edit-note";
+  noteInput.value = currentNote;
+  noteInput.placeholder = "Add a note…";
+  noteInput.maxLength = 80;
+
+  form.append(nameInput, noteInput);
+  labelEl.replaceChildren(form);
+  nameInput.focus();
+  nameInput.select();
+
+  let committed = false;
+  const commit = () => {
+    if (committed) return;
+    committed = true;
+    setExerciseCustom(exerciseId, {
+      name: nameInput.value,
+      note: noteInput.value,
+    });
+    renderTodayView();
+  };
+  const cancel = () => {
+    if (committed) return;
+    committed = true;
+    renderTodayView();
+  };
+
+  // Commit once focus leaves the whole form (not when hopping between the
+  // two inputs). Defer so document.activeElement reflects the new focus.
+  const onBlur = () => {
+    setTimeout(() => {
+      if (!form.contains(document.activeElement)) commit();
+    }, 0);
+  };
+  [nameInput, noteInput].forEach((inp) => {
+    inp.addEventListener("blur", onBlur);
+    inp.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") {
+        e.preventDefault();
+        commit();
+      } else if (e.key === "Escape") {
+        e.preventDefault();
+        cancel();
+      }
+    });
   });
 }
 
@@ -2333,7 +2460,7 @@ function renderLeaderboard() {
     const tier = entry.rank;
     const medal = tier === 1 ? "🥇" : tier === 2 ? "🥈" : "🥉";
     const fineDisplay =
-      entry.totalFines === 0 ? "$0" : `-$${entry.totalFines}`;
+      entry.totalFines === 0 ? "$0" : `$${entry.totalFines}`;
     const fineClass = entry.totalFines === 0 ? "zero" : "";
     return `
       <div class="lb-stand tier-${tier}">
@@ -2370,7 +2497,7 @@ function renderLeaderboard() {
         .map((entry) => {
           const { participant, totalFines, rank } = entry;
           const fineDisplay =
-            totalFines === 0 ? "$0" : `−$${totalFines}`;
+            totalFines === 0 ? "$0" : `$${totalFines}`;
           const fineClass = totalFines === 0 ? "zero" : "";
           return `
             <div class="lb-ledger-row">
@@ -2768,9 +2895,10 @@ async function renderHistory() {
           <span class="hh-t-name">${r.participant.name}</span>
         </div>
       </th>
-      <td class="hh-t-fines">${r.stats.totalFines > 0 ? `−$${r.stats.totalFines}` : "$0"}</td>
+      <td class="hh-t-fines">${r.stats.totalFines > 0 ? `$${r.stats.totalFines}` : "$0"}</td>
       <td class="hh-t-rate">${r.stats.rate}%</td>
       <td class="hh-t-days">${r.stats.completedDays}</td>
+      <td class="hh-t-best">${r.stats.bestStreak > 0 ? r.stats.bestStreak : "—"}</td>
       <td class="hh-t-time">${r.stats.earliest}</td>
       <td class="hh-t-time">${r.stats.latest}</td>
     </tr>
@@ -2786,6 +2914,7 @@ async function renderHistory() {
           <th>Fines</th>
           <th>Rate</th>
           <th>Days</th>
+          <th>Best</th>
           <th>Earliest</th>
           <th>Latest</th>
         </tr>
@@ -2899,7 +3028,7 @@ function renderAdmin() {
       ${avatarHTML(p, "admin-avatar")}
       <span class="admin-name">${p.name}${p.isAdmin ? ' <span style="font-size:0.65rem;background:rgba(108,99,255,0.2);color:var(--accent);padding:2px 6px;border-radius:4px;font-weight:700;">ADMIN</span>' : ""}</span>
       <span style="font-size:0.8rem;color:var(--danger);font-weight:700;font-family:var(--font-mono);">
-        ${fine > 0 ? `-$${fine}` : "$0"}
+        ${fine > 0 ? `$${fine}` : "$0"}
       </span>
       <button class="btn-secondary" style="padding:6px 10px;font-size:0.72rem;" data-toggle-admin="${p.name}" data-is-admin="${p.isAdmin ? "1" : "0"}">
         ${p.isAdmin ? "Revoke Admin" : "Make Admin"}

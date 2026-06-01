@@ -1316,16 +1316,85 @@ body.group-glory-day #history-container {
   min-width: 0;
 }
 
+.exercise-label {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
 .exercise-name {
   font-size: 0.95rem;
   font-weight: 700;
   color: var(--text-primary);
-  flex: 1;
   min-width: 0;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
   letter-spacing: -0.01em;
+}
+
+.exercise-note {
+  font-size: 0.72rem;
+  font-weight: 500;
+  color: var(--text-secondary);
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  letter-spacing: -0.01em;
+}
+
+/* Secret editor: tap your own exercise emoji to rename / add a note. */
+.exercise-emoji-edit {
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  border-radius: 8px;
+  transition: transform 0.12s ease;
+}
+
+.exercise-emoji-edit:active {
+  transform: scale(0.88);
+}
+
+.exercise-emoji-edit:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.exercise-edit-form {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  width: 100%;
+}
+
+.exercise-edit-input {
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  color: var(--text-primary);
+  font-family: inherit;
+  padding: 5px 8px;
+  width: 100%;
+  min-width: 0;
+}
+
+.exercise-edit-input.ex-edit-name {
+  font-size: 0.9rem;
+  font-weight: 700;
+}
+
+.exercise-edit-input.ex-edit-note {
+  font-size: 0.78rem;
+  font-weight: 500;
+}
+
+.exercise-edit-input:focus {
+  outline: none;
+  border-color: var(--accent);
+  background: rgba(255, 255, 255, 0.09);
 }
 
 .exercise-emoji {
@@ -2456,6 +2525,7 @@ body.group-glory-day #history-container {
 .hh-t-fines { color: var(--danger); font-weight: 900; }
 .hh-t-rate { color: var(--success); }
 .hh-t-days { color: #7fc6ff; }
+.hh-t-best { color: #ff9f45; font-weight: 700; }
 .hh-t-time {
   color: var(--warning);
   font-size: 0.78rem;
@@ -2465,8 +2535,9 @@ body.group-glory-day #history-container {
 .hh-table thead th:nth-child(2) { color: var(--danger); }
 .hh-table thead th:nth-child(3) { color: var(--success); }
 .hh-table thead th:nth-child(4) { color: #7fc6ff; }
-.hh-table thead th:nth-child(5),
-.hh-table thead th:nth-child(6) { color: var(--warning); }
+.hh-table thead th:nth-child(5) { color: #ff9f45; }
+.hh-table thead th:nth-child(6),
+.hh-table thead th:nth-child(7) { color: var(--warning); }
 
 
 /* ============================================
