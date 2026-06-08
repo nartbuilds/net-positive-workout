@@ -1162,6 +1162,182 @@ async function sendCompletionNotification(personName) {
 }
 
 // ============================================================
+// NUDGES — poke a teammate (5/day). Cheer the done, watch the not-done.
+// ============================================================
+
+const NUDGE_DAILY_MAX = 5;
+
+function nudgesUsedToday() {
+  try {
+    const raw = JSON.parse(localStorage.getItem("np_nudges") || "{}");
+    return raw.date === state.todayStr ? raw.count || 0 : 0;
+  } catch {
+    return 0;
+  }
+}
+
+function nudgesRemainingToday() {
+  return Math.max(0, NUDGE_DAILY_MAX - nudgesUsedToday());
+}
+
+function recordNudge() {
+  try {
+    localStorage.setItem(
+      "np_nudges",
+      JSON.stringify({ date: state.todayStr, count: nudgesUsedToday() + 1 }),
+    );
+  } catch {}
+}
+
+// Tokens grouped by person, cached briefly so rapid spamming doesn't re-read
+// the whole collection on every tap.
+let _nudgeTokenCache = { ts: 0, byPerson: null };
+
+async function getNudgeTokensByPerson() {
+  if (_nudgeTokenCache.byPerson && Date.now() - _nudgeTokenCache.ts < 60000)
+    return _nudgeTokenCache.byPerson;
+  const snap = await getDocs(collection(db, "tokens"));
+  const byPerson = {};
+  snap.docs
+    .map((d) => d.data())
+    .forEach((t) => {
+      (byPerson[t.person] ||= []).push(t.token);
+    });
+  _nudgeTokenCache = { ts: Date.now(), byPerson };
+  return byPerson;
+}
+
+// Push line = "{me} nudged you: {body}" / "{me} gave kudos: {body}". Only the
+// body is user-editable (in the profile modal); the lead is fixed. Device-local
+// — used only on the sender's device, so it never needs to sync.
+const NUDGE_DEFAULT_BODY = "finish today's workout — I'm watching!";
+const KUDOS_DEFAULT_BODY = "great work finishing today!";
+
+function getNudgeBody(isDone) {
+  try {
+    const v = (
+      localStorage.getItem(isDone ? "np_kudos_msg" : "np_nudge_msg") || ""
+    ).trim();
+    if (v) return v;
+  } catch {}
+  return isDone ? KUDOS_DEFAULT_BODY : NUDGE_DEFAULT_BODY;
+}
+
+function setNudgeBody(isDone, text) {
+  try {
+    const key = isDone ? "np_kudos_msg" : "np_nudge_msg";
+    const t = (text || "").trim();
+    if (t) localStorage.setItem(key, t);
+    else localStorage.removeItem(key);
+  } catch {}
+}
+
+// Fire the actual push — background, never awaited by the tap handler, so
+// you can spam as fast as you can tap up to your remaining count.
+async function deliverNudge(targetName, isDone) {
+  const me = state.currentUser?.name;
+  if (!me) return;
+  const lead = isDone ? `${me} gave kudos` : `${me} nudged you`;
+  const message = `${lead}: ${getNudgeBody(isDone)}`;
+  try {
+    const byPerson = await getNudgeTokensByPerson();
+    const tokens = byPerson[targetName] || [];
+    if (!tokens.length) return;
+    await fetch("/.netlify/functions/notify", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ message, tokens }),
+    });
+  } catch (err) {
+    console.warn("[Nudge] delivery failed:", err.message);
+  }
+}
+
+// Tick one pip to spent in place (no full re-render, so rapid taps stay smooth)
+function spendNudgePipInPlace(summary) {
+  const remaining = nudgesRemainingToday();
+  const pip = summary.querySelectorAll(".nudge-pip")[remaining];
+  if (pip && !pip.classList.contains("spent")) {
+    pip.classList.remove("just-spent");
+    void pip.offsetWidth; // restart the pop animation on rapid taps
+    pip.classList.add("spent", "just-spent");
+  }
+  if (remaining <= 0) {
+    summary.querySelector(".nudge-meter")?.classList.add("empty");
+    const label = summary.querySelector(".nudge-meter-label");
+    if (label) label.textContent = "spent";
+  }
+}
+
+// One tap = one optimistic spend. Synchronous so the daily cap is enforced
+// even under rapid fire; the network push goes out in the background.
+function spendNudge(targetName, isDone, btn, summary) {
+  const me = state.currentUser?.name;
+  if (!me || targetName === me) return;
+  if (nudgesRemainingToday() <= 0) return;
+  recordNudge();
+  spawnNudgeBurst(btn, isDone);
+  spendNudgePipInPlace(summary);
+  if (nudgesRemainingToday() <= 0)
+    summary.querySelectorAll(".gsm-nudge").forEach((b) => (b.disabled = true));
+  deliverNudge(targetName, isDone);
+}
+
+// Visual send moment: the emoji (👀 / ❤️) floats up off the button over an
+// expanding accent ring. Fired optimistically on tap — purely cosmetic.
+function spawnNudgeBurst(btn, isDone) {
+  const faceEl = btn.querySelector(".gsm-nudge-face") || btn;
+  const r = faceEl.getBoundingClientRect();
+  const cx = r.left + r.width / 2;
+  const cy = r.top + r.height / 2;
+  const accent = isDone ? "0, 217, 163" : "255, 159, 67";
+  const emoji = isDone ? "❤️" : "👀";
+
+  const ring = document.createElement("div");
+  ring.style.cssText = `position:fixed;left:${cx}px;top:${cy}px;width:18px;height:18px;
+    margin:-9px 0 0 -9px;border-radius:50%;pointer-events:none;z-index:9998;
+    border:2px solid rgba(${accent},0.85);`;
+  document.body.appendChild(ring);
+  ring.animate(
+    [
+      { transform: "scale(0.4)", opacity: 0.9 },
+      { transform: "scale(3)", opacity: 0 },
+    ],
+    {
+      duration: 460,
+      easing: "cubic-bezier(0.22, 1, 0.36, 1)",
+      fill: "forwards",
+    },
+  ).onfinish = () => ring.remove();
+
+  const fly = document.createElement("div");
+  fly.textContent = emoji;
+  fly.style.cssText = `position:fixed;left:${cx}px;top:${cy}px;pointer-events:none;
+    z-index:9999;font-size:19px;line-height:1;will-change:transform,opacity;`;
+  document.body.appendChild(fly);
+  const dx = (Math.random() - 0.5) * 28;
+  fly.animate(
+    [
+      { transform: "translate(-50%,-50%) scale(0.6)", opacity: 0 },
+      {
+        transform: "translate(-50%,-50%) scale(1.35)",
+        opacity: 1,
+        offset: 0.2,
+      },
+      {
+        transform: `translate(calc(-50% + ${dx}px), calc(-50% - 48px)) scale(0.7)`,
+        opacity: 0,
+      },
+    ],
+    {
+      duration: 720,
+      easing: "cubic-bezier(0.22, 1, 0.36, 1)",
+      fill: "forwards",
+    },
+  ).onfinish = () => fly.remove();
+}
+
+// ============================================================
 // OFFLINE QUEUE
 // ============================================================
 
@@ -1614,6 +1790,7 @@ function renderTodayView() {
   if (others.length > 0) {
     const summary = document.createElement("div");
     summary.className = "today-group-summary";
+    const nudgesLeft = nudgesRemainingToday();
 
     const tiles = others
       .map((p) => {
@@ -1640,12 +1817,16 @@ function renderTodayView() {
               : `<span class="gsm-status">${done.length}/${total}</span>`;
         const offClass =
           isOtherOff && !isOtherDone ? (isOtherRest ? " rest" : " sick") : "";
+        const nudgeBtn = isOtherDone
+          ? `<button class="gsm-nudge cheer" data-nudge="${p.name}" data-done="1"${nudgesLeft ? "" : " disabled"} title="Send kudos to ${p.name}"><span class="gsm-nudge-face">❤️</span><span class="gsm-nudge-word">kudos</span></button>`
+          : `<button class="gsm-nudge" data-nudge="${p.name}" data-done="0"${nudgesLeft ? "" : " disabled"} title="Nudge ${p.name}"><span class="gsm-nudge-face">👀</span><span class="gsm-nudge-word">nudge</span></button>`;
         return `
         <div class="gsm-tile${isOtherDone ? " done" : ""}${offClass}" style="--tile-color:${color}">
           ${progressRingHTML(pct, color, isOtherOff && !isOtherDone, p)}
           <div class="gsm-tile-name">${p.name}</div>
           ${statusLine}
           <div class="gsm-dots">${dots}</div>
+          ${nudgeBtn}
         </div>
       `;
       })
@@ -1655,7 +1836,20 @@ function renderTodayView() {
       isWorkoutComplete(p.name, state.todayStr),
     );
     if (allOthersDone) summary.classList.add("all-done");
-    summary.innerHTML = `<div class="gsm-label">Group Today</div><div class="gsm-grid">${tiles}</div>`;
+    const pips = Array.from(
+      { length: NUDGE_DAILY_MAX },
+      (_, i) =>
+        `<span class="nudge-pip${i < nudgesLeft ? "" : " spent"}" aria-hidden="true"></span>`,
+    ).join("");
+    const meterLabel = nudgesLeft ? "left" : "spent";
+    const nudgeMeter = `<span class="nudge-meter${nudgesLeft ? "" : " empty"}" role="img" aria-label="${nudgesLeft} of ${NUDGE_DAILY_MAX} nudges left today"><span class="nudge-pips">${pips}</span><span class="nudge-meter-label">${meterLabel}</span></span>`;
+    summary.innerHTML = `<div class="gsm-label"><span class="gsm-label-text">Group Today</span>${nudgeMeter}</div><div class="gsm-grid">${tiles}</div>`;
+    summary.querySelectorAll(".gsm-nudge").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        if (btn.disabled) return;
+        spendNudge(btn.dataset.nudge, btn.dataset.done === "1", btn, summary);
+      });
+    });
     container.appendChild(summary);
   }
 
@@ -1759,9 +1953,7 @@ function getExerciseNote(exerciseId) {
 function setExerciseCustom(exerciseId, { name, note }) {
   try {
     const stored = JSON.parse(localStorage.getItem("np_ex_custom") || "{}");
-    const defaultName = CONFIG.EXERCISES.find(
-      (e) => e.id === exerciseId,
-    )?.name;
+    const defaultName = CONFIG.EXERCISES.find((e) => e.id === exerciseId)?.name;
     const entry = {};
     // Only persist a name override when it actually differs from the default.
     if (name && name.trim() && name.trim() !== defaultName)
@@ -2252,7 +2444,9 @@ function handleCountChange(personName, exerciseId, delta) {
 function animateCount(el, value) {
   const prev = Number(el.dataset.value);
   el.dataset.value = value;
-  const reduce = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
+  const reduce = window.matchMedia?.(
+    "(prefers-reduced-motion: reduce)",
+  ).matches;
   if (!Number.isFinite(prev) || prev === value || reduce) {
     el.textContent = `$${value}`;
     return;
@@ -2300,10 +2494,7 @@ function renderLeaderboard() {
     const startDate = new Date(CONFIG.CHALLENGE_START_DATE + "T00:00:00");
     if (todayMidnight >= startDate) {
       dayOf = Math.floor((todayMidnight - startDate) / 86400000) + 1;
-      totalDays = Math.max(
-        1,
-        Math.round((endDate - startDate) / 86400000) + 1,
-      );
+      totalDays = Math.max(1, Math.round((endDate - startDate) / 86400000) + 1);
     }
   }
   if (progress) {
@@ -2448,7 +2639,8 @@ function renderLeaderboard() {
     const right = [];
     others.forEach((entry, i) => {
       // Alternate: silver/bronze pairs build outward from the center
-      if (i % 2 === 0) left.unshift(entry); // even index → outer-left
+      if (i % 2 === 0)
+        left.unshift(entry); // even index → outer-left
       else right.push(entry); // odd index → outer-right
     });
     ordered = [...left, firsts[0], ...right];
@@ -2459,8 +2651,7 @@ function renderLeaderboard() {
   const standHTML = (entry) => {
     const tier = entry.rank;
     const medal = tier === 1 ? "🥇" : tier === 2 ? "🥈" : "🥉";
-    const fineDisplay =
-      entry.totalFines === 0 ? "$0" : `$${entry.totalFines}`;
+    const fineDisplay = entry.totalFines === 0 ? "$0" : `$${entry.totalFines}`;
     const fineClass = entry.totalFines === 0 ? "zero" : "";
     return `
       <div class="lb-stand tier-${tier}">
@@ -2496,8 +2687,7 @@ function renderLeaderboard() {
       ${restEntries
         .map((entry) => {
           const { participant, totalFines, rank } = entry;
-          const fineDisplay =
-            totalFines === 0 ? "$0" : `$${totalFines}`;
+          const fineDisplay = totalFines === 0 ? "$0" : `$${totalFines}`;
           const fineClass = totalFines === 0 ? "zero" : "";
           return `
             <div class="lb-ledger-row">
@@ -2512,7 +2702,6 @@ function renderLeaderboard() {
     `;
     container.appendChild(ledger);
   }
-
 }
 
 // ============================================================
@@ -3807,6 +3996,17 @@ function bindEvents() {
       .getElementById("btn-remove-avatar")
       .classList.toggle("hidden", !state.currentUser.avatar);
     document.getElementById("btn-save-avatar").disabled = true;
+    const meName = state.currentUser.name;
+    document.getElementById("nudge-msg-prefix").textContent =
+      `${meName} nudged you:`;
+    document.getElementById("kudos-msg-prefix").textContent =
+      `${meName} gave kudos:`;
+    const nudgeInput = document.getElementById("nudge-msg-input");
+    const kudosInput = document.getElementById("kudos-msg-input");
+    nudgeInput.placeholder = NUDGE_DEFAULT_BODY;
+    kudosInput.placeholder = KUDOS_DEFAULT_BODY;
+    nudgeInput.value = localStorage.getItem("np_nudge_msg") || "";
+    kudosInput.value = localStorage.getItem("np_kudos_msg") || "";
     renderColorPicker();
     openModal("avatar-modal");
   });
@@ -3830,6 +4030,12 @@ function bindEvents() {
   document
     .getElementById("btn-remove-avatar")
     .addEventListener("click", removeAvatar);
+  document
+    .getElementById("nudge-msg-input")
+    ?.addEventListener("input", (e) => setNudgeBody(false, e.target.value));
+  document
+    .getElementById("kudos-msg-input")
+    ?.addEventListener("input", (e) => setNudgeBody(true, e.target.value));
   document
     .getElementById("btn-cancel-avatar")
     .addEventListener("click", () => closeModal("avatar-modal"));

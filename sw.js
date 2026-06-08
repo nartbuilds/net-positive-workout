@@ -1,11 +1,20 @@
-const CACHE = "netpve-v183";
-const SHELL = ["/", "/index.html", "/styles.css", "/app.js", "/manifest.json", "/alan/alan_neutral.png", "/alan/alan_cheer.png", "/alan/alan_heart.png", "/alan/alan_scared.png", "/alan/alan_tired.png"];
+const CACHE = "netpve-v203";
+const SHELL = [
+  "/",
+  "/index.html",
+  "/styles.css",
+  "/app.js",
+  "/manifest.json",
+  "/alan/alan_neutral.png",
+  "/alan/alan_cheer.png",
+  "/alan/alan_heart.png",
+  "/alan/alan_scared.png",
+  "/alan/alan_tired.png",
+];
 
 // Install: cache app shell, take over immediately
 self.addEventListener("install", (event) => {
-  event.waitUntil(
-    caches.open(CACHE).then((c) => c.addAll(SHELL)),
-  );
+  event.waitUntil(caches.open(CACHE).then((c) => c.addAll(SHELL)));
   self.skipWaiting();
 });
 
@@ -15,7 +24,9 @@ self.addEventListener("activate", (event) => {
     caches
       .keys()
       .then((keys) =>
-        Promise.all(keys.filter((k) => k !== CACHE).map((k) => caches.delete(k))),
+        Promise.all(
+          keys.filter((k) => k !== CACHE).map((k) => caches.delete(k)),
+        ),
       ),
   );
   self.clients.claim();
@@ -33,7 +44,9 @@ self.addEventListener("fetch", (event) => {
     return; // network-only for API calls
   }
   event.respondWith(
-    caches.match(event.request).then((cached) => cached || fetch(event.request)),
+    caches
+      .match(event.request)
+      .then((cached) => cached || fetch(event.request)),
   );
 });
 

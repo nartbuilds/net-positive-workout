@@ -1681,6 +1681,10 @@ body.group-glory-day #history-container {
 }
 
 .gsm-label {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
   font-size: 0.68rem;
   font-weight: 700;
   text-transform: uppercase;
@@ -1810,6 +1814,131 @@ body.group-glory-day #history-container {
 .gsm-dot.pending {
   background: rgba(90, 90, 128, 0.12);
   filter: grayscale(1) opacity(0.45);
+}
+
+/* ── Nudge ammo meter: spendable pips in the nudge accent (orange) ── */
+.nudge-meter {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  text-transform: none;
+  letter-spacing: 0;
+}
+
+.nudge-pips {
+  display: inline-flex;
+  gap: 4px;
+}
+
+.nudge-pip {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #ff9f43;
+  box-shadow: 0 0 6px rgba(255, 159, 67, 0.4);
+  transition: all 0.25s;
+}
+
+.nudge-pip.spent {
+  background: rgba(90, 90, 128, 0.18);
+  box-shadow: none;
+}
+
+/* The pip you just burned: pop bright, then settle to spent */
+.nudge-pip.just-spent {
+  animation: pip-spend 0.45s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+@keyframes pip-spend {
+  0% {
+    transform: scale(1.8);
+    background: #ff9f43;
+    box-shadow: 0 0 9px #ff9f43;
+  }
+  45% {
+    transform: scale(0.7);
+  }
+  100% {
+    transform: scale(1);
+    background: rgba(90, 90, 128, 0.18);
+    box-shadow: none;
+  }
+}
+
+.nudge-meter-label {
+  font-size: 0.6rem;
+  font-weight: 700;
+  text-transform: lowercase;
+  color: var(--text-secondary);
+}
+
+.nudge-meter.empty .nudge-meter-label {
+  color: var(--text-muted);
+}
+
+/* ── Nudge buttons: a "loaded action chip" — emoji seated in a recessed
+   well, verb demoted to a micro-label. One --na (nudge accent, rgb)
+   drives the whole chip so both states + disabled share one rule set. ── */
+.gsm-nudge {
+  --na: 255, 159, 67; /* orange — the nudge */
+  margin-top: 8px;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 5px 12px;
+  font-family: inherit;
+  font-size: 0.6rem;
+  font-weight: 800;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: rgb(var(--na));
+  background: rgba(var(--na), 0.08);
+  border: 1px solid rgba(var(--na), 0.4);
+  border-radius: 8px;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  transition:
+    transform 0.14s cubic-bezier(0.22, 1, 0.36, 1),
+    border-color 0.2s ease,
+    background 0.2s ease,
+    box-shadow 0.2s ease;
+}
+
+.gsm-nudge.cheer {
+  --na: 0, 217, 163; /* green — the cheer */
+}
+
+.gsm-nudge .gsm-nudge-face {
+  font-size: 0.85rem;
+  line-height: 1;
+  transition: transform 0.16s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.gsm-nudge:hover:not(:disabled) {
+  border-color: rgba(var(--na), 0.72);
+  background: rgba(var(--na), 0.16);
+  box-shadow: 0 3px 14px rgba(var(--na), 0.22);
+}
+
+/* emoji swells on hover (no rotation) */
+.gsm-nudge:hover:not(:disabled) .gsm-nudge-face {
+  transform: scale(1.18);
+}
+
+.gsm-nudge:not(:disabled):active {
+  transform: scale(0.95);
+}
+
+.gsm-nudge:not(:disabled):active .gsm-nudge-face {
+  transform: scale(0.88);
+}
+
+.gsm-nudge:disabled {
+  --na: 120, 120, 150;
+  color: var(--text-muted);
+  opacity: 0.5;
+  cursor: not-allowed;
+  box-shadow: none;
 }
 
 /* ============================================
@@ -2586,6 +2715,54 @@ body.group-glory-day #history-container {
   letter-spacing: 0.5px;
   margin-bottom: 8px;
   text-align: center;
+}
+.nudge-msg-section {
+  margin: 0 0 16px;
+  padding: 10px 10px 12px;
+  background: var(--surface-2, rgba(255, 255, 255, 0.03));
+  border: 1px solid var(--border);
+  border-radius: 10px;
+}
+.nudge-msg-section .color-picker-label {
+  text-align: left;
+}
+/* "partially editable" line: fixed emoji+name prefix, editable body */
+.msg-edit-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 8px;
+  padding: 7px 9px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+.msg-edit-row:focus-within {
+  border-color: var(--accent);
+}
+.msg-edit-prefix {
+  flex-shrink: 0;
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: var(--text-secondary);
+  white-space: nowrap;
+}
+.msg-edit-input {
+  flex: 1;
+  min-width: 0;
+  background: transparent;
+  border: none;
+  outline: none;
+  color: var(--text-primary);
+  font-family: inherit;
+  font-size: 0.82rem;
+  padding: 0;
+}
+.msg-edit-input::placeholder {
+  color: var(--text-muted);
+}
+.nudge-msg-section .form-hint {
+  margin-top: 4px;
 }
 .color-picker-swatches {
   display: grid;
