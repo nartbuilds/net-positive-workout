@@ -1276,6 +1276,7 @@ function spendNudge(targetName, isDone, btn, summary) {
   if (!me || targetName === me) return;
   if (nudgesRemainingToday() <= 0) return;
   recordNudge();
+  btn.blur(); // drop focus so no glow lingers after the tap
   spawnNudgeBurst(btn, isDone);
   spendNudgePipInPlace(summary);
   if (nudgesRemainingToday() <= 0)

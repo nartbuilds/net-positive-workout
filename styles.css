@@ -1914,15 +1914,19 @@ body.group-glory-day #history-container {
   transition: transform 0.16s cubic-bezier(0.22, 1, 0.36, 1);
 }
 
-.gsm-nudge:hover:not(:disabled) {
-  border-color: rgba(var(--na), 0.72);
-  background: rgba(var(--na), 0.16);
-  box-shadow: 0 3px 14px rgba(var(--na), 0.22);
-}
+/* Hover only on real pointers — avoids the glow sticking after a tap on
+   touch devices (where :hover persists until you tap elsewhere). */
+@media (hover: hover) {
+  .gsm-nudge:hover:not(:disabled) {
+    border-color: rgba(var(--na), 0.72);
+    background: rgba(var(--na), 0.16);
+    box-shadow: 0 3px 14px rgba(var(--na), 0.22);
+  }
 
-/* emoji swells on hover (no rotation) */
-.gsm-nudge:hover:not(:disabled) .gsm-nudge-face {
-  transform: scale(1.18);
+  /* emoji swells on hover (no rotation) */
+  .gsm-nudge:hover:not(:disabled) .gsm-nudge-face {
+    transform: scale(1.18);
+  }
 }
 
 .gsm-nudge:not(:disabled):active {

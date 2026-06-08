@@ -1,4 +1,4 @@
-const CACHE = "netpve-v203";
+const CACHE = "netpve-v204";
 const SHELL = [
   "/",
   "/index.html",
