@@ -271,12 +271,21 @@ function getInitials(name) {
     .slice(0, 2);
 }
 
+// Display name shown to users. `name` stays the immutable identity key (Firestore
+// doc id + `person` field on completions/tokens); `displayName` is optional and
+// only affects rendering. Falls back to `name` when unset.
+function getDisplayName(p) {
+  return p && typeof p.displayName === "string" && p.displayName.trim()
+    ? p.displayName.trim()
+    : p?.name ?? "";
+}
+
 function avatarHTML(participant, className) {
   const color = getParticipantColor(participant);
   if (participant.avatar) {
-    return `<div class="${className}" style="background:${color};padding:0;overflow:hidden;"><img src="${participant.avatar}" style="width:100%;height:100%;object-fit:cover;" alt="${participant.name}"></div>`;
+    return `<div class="${className}" style="background:${color};padding:0;overflow:hidden;"><img src="${participant.avatar}" style="width:100%;height:100%;object-fit:cover;" alt="${getDisplayName(participant)}"></div>`;
   }
-  return `<div class="${className}" style="background:${color};">${getInitials(participant.name)}</div>`;
+  return `<div class="${className}" style="background:${color};">${getInitials(getDisplayName(participant))}</div>`;
 }
 
 function progressRingHTML(pct, color, offDay, participant) {
@@ -286,7 +295,7 @@ function progressRingHTML(pct, color, offDay, participant) {
   const c = 2 * Math.PI * r;
   const clamped = Math.max(0, Math.min(1, pct));
   const offset = c * (1 - clamped);
-  const initials = getInitials(participant.name);
+  const initials = getInitials(getDisplayName(participant));
   const innerSize = size - stroke * 2 - 4;
   const inner = participant.avatar
     ? `<image href="${participant.avatar}" x="${(size - innerSize) / 2}" y="${(size - innerSize) / 2}" width="${innerSize}" height="${innerSize}" clip-path="circle(${innerSize / 2}px at ${innerSize / 2}px ${innerSize / 2}px)" preserveAspectRatio="xMidYMid slice"/>`
@@ -1409,7 +1418,7 @@ function renderAuthScreen() {
     btn.dataset.index = i;
     btn.innerHTML = `
       ${avatarHTML(p, "participant-avatar")}
-      <span>${p.name}</span>
+      <span>${getDisplayName(p)}</span>
     `;
     btn.addEventListener("click", () => startPINEntry(p));
     grid.appendChild(btn);
@@ -1424,7 +1433,7 @@ function startPINEntry(participant) {
   pinBuffer = "";
   updatePinDots();
   document.getElementById("auth-pin-title").textContent =
-    `${participant.name}'s PIN`;
+    `${getDisplayName(participant)}'s PIN`;
   document.getElementById("auth-error").classList.remove("visible");
   showAuthStep("pin");
 }
@@ -1536,7 +1545,7 @@ function renderTodayView() {
       state.todayStr,
     );
     const color = getParticipantColor(participant);
-    const initials = getInitials(participant.name);
+    const initials = getInitials(getDisplayName(participant));
     const streak =
       state.cache[participant.name]?.streak ?? calcStreak(participant.name);
 
@@ -1657,7 +1666,7 @@ function renderTodayView() {
         <div class="card-identity">
           ${cardAvatarHTML}
           <div class="card-info">
-            <div class="card-name">${participant.name}</div>
+            <div class="card-name">${getDisplayName(participant)}</div>
             <div class="card-substatus">${substatusText}</div>
           </div>
         </div>
@@ -1819,12 +1828,12 @@ function renderTodayView() {
         const offClass =
           isOtherOff && !isOtherDone ? (isOtherRest ? " rest" : " sick") : "";
         const nudgeBtn = isOtherDone
-          ? `<button class="gsm-nudge cheer" data-nudge="${p.name}" data-done="1"${nudgesLeft ? "" : " disabled"} title="Send kudos to ${p.name}"><span class="gsm-nudge-face">❤️</span><span class="gsm-nudge-word">kudos</span></button>`
-          : `<button class="gsm-nudge" data-nudge="${p.name}" data-done="0"${nudgesLeft ? "" : " disabled"} title="Nudge ${p.name}"><span class="gsm-nudge-face">👀</span><span class="gsm-nudge-word">nudge</span></button>`;
+          ? `<button class="gsm-nudge cheer" data-nudge="${p.name}" data-done="1"${nudgesLeft ? "" : " disabled"} title="Send kudos to ${getDisplayName(p)}"><span class="gsm-nudge-face">❤️</span><span class="gsm-nudge-word">kudos</span></button>`
+          : `<button class="gsm-nudge" data-nudge="${p.name}" data-done="0"${nudgesLeft ? "" : " disabled"} title="Nudge ${getDisplayName(p)}"><span class="gsm-nudge-face">👀</span><span class="gsm-nudge-word">nudge</span></button>`;
         return `
         <div class="gsm-tile${isOtherDone ? " done" : ""}${offClass}" style="--tile-color:${color}">
           ${progressRingHTML(pct, color, isOtherOff && !isOtherDone, p)}
-          <div class="gsm-tile-name">${p.name}</div>
+          <div class="gsm-tile-name">${getDisplayName(p)}</div>
           ${statusLine}
           <div class="gsm-dots">${dots}</div>
           ${nudgeBtn}
@@ -2658,7 +2667,7 @@ function renderLeaderboard() {
       <div class="lb-stand tier-${tier}">
         <div class="lb-stand-stack">
           ${avatarHTML(entry.participant, "lb-stand-avatar")}
-          <div class="lb-stand-name">${entry.participant.name}</div>
+          <div class="lb-stand-name">${getDisplayName(entry.participant)}</div>
           <div class="lb-stand-meta">
             ${streakHTML(entry)}
             <span class="lb-stand-fine ${fineClass}">${fineDisplay}</span>
@@ -2694,7 +2703,7 @@ function renderLeaderboard() {
             <div class="lb-ledger-row">
               <span class="lb-ledger-rank">${String(rank).padStart(2, "0")}</span>
               ${avatarHTML(participant, "lb-ledger-avatar")}
-              <span class="lb-ledger-name">${participant.name}</span>
+              <span class="lb-ledger-name">${getDisplayName(participant)}</span>
               <span class="lb-ledger-streak">${streakHTML(entry)}</span>
               <span class="lb-ledger-fine ${fineClass}">${fineDisplay}</span>
             </div>`;
@@ -2757,7 +2766,7 @@ function getWorkoutTimesChartData() {
         if (!m) return null;
         return parseInt(m[1], 10) * 60 + parseInt(m[2], 10);
       });
-      return { name: p.name, color, points };
+      return { name: getDisplayName(p), color, points };
     }),
   };
 }
@@ -3067,7 +3076,7 @@ async function renderHistory() {
       (r, idx) => `
     <div class="hh-name-row" style="--c:${r.color};">
       ${avatarHTML(r.participant, "hh-avatar")}
-      <div class="hh-person-name">${r.participant.name}</div>
+      <div class="hh-person-name">${getDisplayName(r.participant)}</div>
     </div>
     <div class="hh-cell-row">${cellsHTML(idx, r.cells)}</div>
   `,
@@ -3082,7 +3091,7 @@ async function renderHistory() {
       <th scope="row" class="hh-t-person">
         <div class="hh-t-person-inner">
           ${avatarHTML(r.participant, "hh-t-avatar")}
-          <span class="hh-t-name">${r.participant.name}</span>
+          <span class="hh-t-name">${getDisplayName(r.participant)}</span>
         </div>
       </th>
       <td class="hh-t-fines">${r.stats.totalFines > 0 ? `$${r.stats.totalFines}` : "$0"}</td>
@@ -3183,7 +3192,7 @@ async function renderHistory() {
       extra = ` · ${cell.done}/${CONFIG.EXERCISES.length} so far`;
     detail.removeAttribute("data-empty");
     detail.innerHTML = `
-      <strong>${row.participant.name}</strong>
+      <strong>${getDisplayName(row.participant)}</strong>
       <span class="hh-detail-date">${fmtFullDate(cell.date)}</span>
       <span class="hh-detail-state hh-d-${cell.state}">${stateLabel[cell.state]}${extra}</span>
     `;
@@ -3216,7 +3225,7 @@ function renderAdmin() {
     row.className = "participant-admin-row";
     row.innerHTML = `
       ${avatarHTML(p, "admin-avatar")}
-      <span class="admin-name">${p.name}${p.isAdmin ? ' <span style="font-size:0.65rem;background:rgba(108,99,255,0.2);color:var(--accent);padding:2px 6px;border-radius:4px;font-weight:700;">ADMIN</span>' : ""}</span>
+      <span class="admin-name">${getDisplayName(p)}${getDisplayName(p) !== p.name ? ` <span style="font-size:0.65rem;opacity:0.5;font-weight:400;">(${p.name})</span>` : ""}${p.isAdmin ? ' <span style="font-size:0.65rem;background:rgba(108,99,255,0.2);color:var(--accent);padding:2px 6px;border-radius:4px;font-weight:700;">ADMIN</span>' : ""}</span>
       <span style="font-size:0.8rem;color:var(--danger);font-weight:700;font-family:var(--font-mono);">
         ${fine > 0 ? `$${fine}` : "$0"}
       </span>
@@ -3277,17 +3286,20 @@ function renderAdmin() {
 
 function renderHeader() {
   if (!state.currentUser) return;
+  const me =
+    state.participants.find((p) => p.name === state.currentUser.name) ||
+    state.currentUser;
   const color = getParticipantColor(state.currentUser);
   const avatarEl = document.getElementById("header-avatar");
   avatarEl.style.background = color;
   if (state.currentUser.avatar) {
     avatarEl.style.padding = "0";
     avatarEl.style.overflow = "hidden";
-    avatarEl.innerHTML = `<img src="${state.currentUser.avatar}" style="width:100%;height:100%;object-fit:cover;" alt="${state.currentUser.name}">`;
+    avatarEl.innerHTML = `<img src="${state.currentUser.avatar}" style="width:100%;height:100%;object-fit:cover;" alt="${getDisplayName(me)}">`;
   } else {
     avatarEl.style.padding = "";
     avatarEl.style.overflow = "";
-    avatarEl.textContent = getInitials(state.currentUser.name);
+    avatarEl.textContent = getInitials(getDisplayName(me));
   }
   document.getElementById("header-name").textContent = "Profile";
 }
@@ -3800,12 +3812,12 @@ function showGroupCompleteOverlay() {
     .map((p, i) => {
       const color = getParticipantColor(p);
       const inner = p.avatar
-        ? `<img src="${p.avatar}" style="width:100%;height:100%;object-fit:cover;border-radius:50%;" alt="${p.name}">`
-        : getInitials(p.name);
+        ? `<img src="${p.avatar}" style="width:100%;height:100%;object-fit:cover;border-radius:50%;" alt="${getDisplayName(p)}">`
+        : getInitials(getDisplayName(p));
       return `
       <div class="glory-avatar-wrap" style="animation-delay:${i * 0.3}s">
         <div class="glory-avatar" style="background:${color};">${inner}</div>
-        <div class="glory-name">${p.name.split(" ")[0]}</div>
+        <div class="glory-name">${getDisplayName(p).split(" ")[0]}</div>
       </div>`;
     })
     .join("");
