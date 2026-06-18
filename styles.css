@@ -2222,17 +2222,6 @@ body.group-glory-day #history-container {
 /* ============================================
    HISTORY VIEW — WALL + SCORE SHEET
    ============================================ */
-.history-epigraph {
-  font-size: 0.78rem;
-  font-style: italic;
-  color: var(--text-muted);
-  margin: 8px 2px 18px;
-  line-height: 1.4;
-  letter-spacing: 0.01em;
-  border-left: 2px solid var(--border);
-  padding-left: 10px;
-}
-
 .hh-eyebrow {
   font-size: 0.65rem;
   font-weight: 800;
@@ -3647,4 +3636,417 @@ body.group-glory-day #app {
     border-left: 1px solid var(--border);
     border-right: 1px solid var(--border);
   }
+}
+
+/* ============================================================
+   DICTATOR FEATURE — crown/pleb badges, appointment popup,
+   quote of the day, Hall of Dictators
+   ============================================================ */
+
+/* Dictator crown badge, worn on the avatar. Sized in `em` so it tracks each
+   avatar's own type scale (small ledger rows → small crown, large cards →
+   larger). It's *worn* — perched on the top edge, tilted — not a corner badge. */
+.royal-badge {
+  position: absolute;
+  line-height: 1;
+  pointer-events: none;
+  z-index: 3;
+  filter: drop-shadow(0 1px 2px rgba(10, 10, 15, 0.6));
+}
+.royal-badge.crown {
+  top: 0;
+  left: 50%;
+  font-size: 1.05em;
+  transform: translate(-50%, -58%) rotate(-12deg);
+  transform-origin: bottom center;
+  animation: crownDrop 0.55s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+@keyframes crownDrop {
+  from {
+    transform: translate(-50%, -150%) rotate(-12deg) scale(0.6);
+    opacity: 0;
+  }
+}
+
+/* Group-summary tile: wrap the ring so the crown perches precisely on it.
+   A touch larger here to read against the 64px ring. */
+.gsm-ring-wrap {
+  position: relative;
+  display: inline-flex;
+  line-height: 0;
+}
+.gsm-ring-wrap .royal-badge.crown {
+  font-size: 1.35rem;
+}
+
+/* Appointment popup (reuses .group-complete-overlay base) */
+.dictator-overlay {
+  cursor: default;
+}
+.dictator-choices {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px;
+  justify-content: center;
+  margin-bottom: 8px;
+}
+.dictator-choice {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 14px 16px;
+  cursor: pointer;
+  transition:
+    transform 0.15s ease,
+    border-color 0.15s ease,
+    background 0.15s ease;
+}
+.dictator-choice:hover,
+.dictator-choice:focus-visible {
+  transform: translateY(-3px) scale(1.03);
+  border-color: var(--warning);
+  background: var(--warning-glow);
+}
+.dictator-choice:active {
+  transform: scale(0.96);
+}
+.dictator-choice-av {
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  color: #fff;
+  font-weight: 900;
+  font-size: 1.2rem;
+}
+.dictator-choice-name {
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: var(--text-secondary);
+}
+.dictator-skip {
+  margin-top: 22px;
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--text-muted);
+  border-radius: 999px;
+  padding: 10px 22px;
+  font-size: 0.85rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: color 0.15s ease, border-color 0.15s ease;
+}
+.dictator-skip:hover {
+  color: var(--text-secondary);
+  border-color: var(--text-secondary);
+}
+
+/* Quote of the day — "royal proclamation" pull-quote on the Today page. */
+.proclamation {
+  --decree-gold: var(--warning);
+  position: relative;
+  display: grid;
+  grid-template-columns: 30px minmax(0, 1fr);
+  grid-template-areas:
+    "mark label"
+    "mark text"
+    ". by";
+  column-gap: 12px;
+  row-gap: 6px;
+  margin: 0 0 16px;
+  padding: 14px 16px 14px 14px;
+  border-radius: 14px;
+  background:
+    linear-gradient(
+      135deg,
+      color-mix(in oklab, var(--decree-gold) 13%, var(--bg-card)) 0%,
+      var(--bg-card) 72%
+    );
+  border: 1px solid color-mix(in oklab, var(--decree-gold) 28%, var(--border));
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.05),
+    0 10px 28px rgba(0, 0, 0, 0.18);
+  overflow: hidden;
+  animation: proclaimIn 0.5s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+.proclamation::before {
+  content: "Regime Reminder";
+  grid-area: label;
+  align-self: end;
+  font-size: 0.64rem;
+  font-weight: 900;
+  letter-spacing: 0;
+  line-height: 1;
+  text-transform: uppercase;
+  color: color-mix(in oklab, var(--decree-gold) 88%, var(--text-primary));
+}
+@keyframes proclaimIn {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+}
+.proclamation-mark {
+  grid-area: mark;
+  align-self: start;
+  justify-self: center;
+  position: relative;
+  top: 3px;
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: 3.15rem;
+  line-height: 0.78;
+  color: var(--decree-gold);
+  opacity: 0.5;
+  pointer-events: none;
+}
+.proclamation-text {
+  grid-area: text;
+  position: relative;
+  margin: 0;
+  font-size: 1.02rem;
+  font-style: italic;
+  line-height: 1.48;
+  letter-spacing: 0;
+  color: var(--text-primary);
+  overflow-wrap: anywhere;
+}
+.proclamation-text.placeholder {
+  color: var(--text-muted);
+}
+.proclamation.editable .proclamation-text {
+  border-radius: var(--radius-xs);
+  cursor: pointer;
+  transition:
+    color 0.15s ease,
+    background 0.15s ease,
+    box-shadow 0.15s ease;
+}
+.proclamation.editable .proclamation-text:hover,
+.proclamation.editable .proclamation-text:focus-visible {
+  background: rgba(255, 209, 102, 0.08);
+  box-shadow: 0 0 0 4px rgba(255, 209, 102, 0.08);
+}
+.proclamation-edit-cue {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  background: transparent;
+  border: 0;
+  color: var(--decree-gold);
+  font-size: 1rem;
+  line-height: 1;
+  opacity: 0.82;
+}
+.proclamation-edit-cue:hover,
+.proclamation-edit-cue:focus-visible {
+  opacity: 1;
+  transform: translateY(-1px);
+}
+.proclamation-edit-cue:active {
+  transform: translateY(0) scale(0.96);
+}
+.proclamation-by {
+  grid-area: by;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  min-width: 0;
+  gap: 6px;
+  margin-top: 1px;
+}
+.proclamation-seal {
+  font-size: 0.8rem;
+  line-height: 1;
+  filter: drop-shadow(0 1px 1px rgba(10, 10, 15, 0.5));
+}
+.proclamation-author {
+  font-family: var(--font-mono);
+  font-size: 0.62rem;
+  font-weight: 700;
+  letter-spacing: 0;
+  text-transform: uppercase;
+  color: var(--decree-gold);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.proclamation-input {
+  grid-area: text;
+  display: block;
+  min-width: 0;
+  width: 100%;
+  font-size: 1.02rem;
+  font-style: italic;
+  line-height: 1.45;
+  background: color-mix(in oklab, var(--bg-secondary) 86%, var(--decree-gold));
+  border: 1px solid var(--decree-gold);
+  border-radius: var(--radius-sm);
+  padding: 8px 10px;
+  color: var(--text-primary);
+  box-shadow: 0 0 0 4px rgba(255, 209, 102, 0.1);
+}
+
+@media (max-width: 380px) {
+  .proclamation {
+    grid-template-columns: 24px minmax(0, 1fr);
+    column-gap: 10px;
+    padding: 13px 14px 13px 12px;
+  }
+  .proclamation-mark {
+    font-size: 2.75rem;
+  }
+}
+
+/* Admin "Dictator of the day" picker */
+.dictator-admin-hint {
+  font-size: 0.78rem;
+  color: var(--text-muted);
+  margin-bottom: 12px;
+  line-height: 1.4;
+}
+.dictator-admin-picker {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.dictator-pick {
+  border: 1px solid var(--border);
+  background: var(--bg-secondary);
+  color: var(--text-secondary);
+  border-radius: 999px;
+  padding: 8px 14px;
+  font-size: 0.82rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition:
+    transform 0.12s ease,
+    border-color 0.15s ease,
+    color 0.15s ease,
+    background 0.15s ease;
+}
+.dictator-pick:hover {
+  border-color: var(--warning);
+  color: var(--text-primary);
+}
+.dictator-pick:active {
+  transform: scale(0.95);
+}
+.dictator-pick.active {
+  border-color: var(--warning);
+  color: #1a1408;
+  background: var(--warning);
+  box-shadow: 0 2px 12px var(--warning-glow);
+}
+
+/* Hall of Dictators — reuses the .hh-reports section shell (card, header,
+   inner-list rhythm). These rules style the reign rows to mirror the report
+   cards: crown · body · date, on the same .hh-report-btn grid footprint. */
+.hall-empty {
+  padding: 4px 2px;
+  font-size: 0.82rem;
+  color: var(--text-muted);
+  line-height: 1.4;
+}
+.hall-reign {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: start;
+  gap: 12px;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 12px 14px;
+  animation: hallIn 0.5s cubic-bezier(0.22, 1, 0.36, 1) both;
+  animation-delay: calc(var(--i, 0) * 45ms);
+}
+@keyframes hallIn {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+}
+.hall-reign-crown {
+  font-size: 1.15rem;
+  line-height: 1.25;
+  filter: drop-shadow(0 1px 2px rgba(10, 10, 15, 0.5));
+}
+.hall-reign-body {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+.hall-reign-top {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 8px;
+}
+.hall-reign-dict {
+  font-size: 0.92rem;
+  font-weight: 800;
+  letter-spacing: -0.01em;
+  color: var(--text-primary);
+}
+.hall-reign-streak {
+  font-family: var(--font-mono);
+  font-size: 0.58rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #1a1408;
+  background: var(--warning);
+  padding: 2px 7px;
+  border-radius: 999px;
+  white-space: nowrap;
+}
+.hall-reign-verdict {
+  font-size: 0.66rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  font-family: var(--font-mono);
+  color: var(--text-muted);
+}
+.hall-reign-verdict.merciful {
+  color: var(--success);
+}
+.hall-reign-pleb {
+  font-family: var(--font-sans, inherit);
+  text-transform: none;
+  letter-spacing: 0;
+  font-weight: 700;
+  color: var(--text-secondary);
+}
+.hall-reign-quote {
+  margin: 0;
+  font-style: italic;
+  font-size: 0.82rem;
+  line-height: 1.45;
+  color: var(--text-secondary);
+  border-left: 2px solid var(--warning);
+  padding-left: 9px;
+}
+.hall-reign-date {
+  font-family: var(--font-mono);
+  font-size: 0.64rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  text-align: right;
+  white-space: nowrap;
+  padding-top: 3px;
 }

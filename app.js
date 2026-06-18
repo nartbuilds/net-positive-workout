@@ -138,6 +138,8 @@ let state = {
   offlineQueue: [],
   cache: {},
   groupCelebratedToday: false,
+  decree: null, // today's { date, dictator, pleb, quote } from Firestore (Dictator feature)
+  dictatorQuote: null, // sticky { text, by } from settings/app — persists across days
   chartRotated: (() => {
     try {
       return localStorage.getItem("np_chart_rotated") === "1";
@@ -164,6 +166,115 @@ function localISOString(date) {
 function getTodayStr() {
   const d = new Date();
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+
+// ============================================================
+// DICTATOR — each day one member is deterministically "elected" Dictator
+// (no backend: every device computes the same answer from the UTC date +
+// participant list). They may demote one teammate to "Plebeian" for the day
+// and set a quote of the day. State persists in the `decrees` collection,
+// keyed by UTC date, and auto-expires when the date rolls over.
+// ============================================================
+
+// Canonical date for the election + decree doc id. UTC so members in different
+// timezones (UTC+1 / UTC+8) always agree on who today's Dictator is.
+function getUTCTodayStr() {
+  const d = new Date();
+  return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}-${String(d.getUTCDate()).padStart(2, "0")}`;
+}
+
+// FNV-1a → 0..1 float (same hash used by seedTestData), deterministic per string.
+function fracHash(s) {
+  let h = 0x811c9dc5;
+  for (let i = 0; i < s.length; i++)
+    h = Math.imul(h ^ s.charCodeAt(i), 0x01000193);
+  return (h >>> 0) / 0xffffffff;
+}
+
+// Today's Dictator name, derived purely from the date + sorted participant
+// names so all devices agree. Returns null if there are no participants.
+function getDictatorForDay(dateStr, names) {
+  const sorted = [...names].sort();
+  if (!sorted.length) return null;
+  const idx = Math.floor(fracHash(dateStr + "|" + sorted.join(",")) * sorted.length);
+  return sorted[Math.min(idx, sorted.length - 1)];
+}
+
+// Current Dictator (today, UTC). An admin override on today's decree takes
+// precedence over the deterministic pick; otherwise it's the random election.
+function currentDictator() {
+  const today = getUTCTodayStr();
+  if (
+    state.decree &&
+    state.decree.date === today &&
+    state.decree.overrideDictator
+  )
+    return state.decree.overrideDictator;
+  return getDictatorForDay(
+    today,
+    state.participants.map((p) => p.name),
+  );
+}
+
+// Today's Plebeian name, only if the decree is for the current UTC date.
+function currentPleb() {
+  return state.decree && state.decree.date === getUTCTodayStr()
+    ? state.decree.pleb || null
+    : null;
+}
+
+// Crown badge for the day's Dictator, worn on their avatar. Returns "" for
+// everyone else (the Plebeian is marked by their "Plebeian" rename, not a
+// badge). Positioned by `.royal-badge` CSS against a relative avatar container.
+function royalBadgeHTML(p) {
+  if (!p || !p.name) return "";
+  if (p.name === currentDictator())
+    return `<span class="royal-badge crown" title="Today's Dictator">👑</span>`;
+  return "";
+}
+
+// Live listener on today's decree doc. The doc id is the UTC date, so on day
+// rollover we must tear down and re-subscribe to the new date's doc.
+let _decreeUnsub = null;
+let _decreeSubDate = null;
+
+function subscribeDecree() {
+  if (!db) return;
+  const date = getUTCTodayStr();
+  if (_decreeSubDate === date && _decreeUnsub) return; // already on the right doc
+  if (_decreeUnsub) _decreeUnsub();
+  _decreeSubDate = date;
+  _decreeUnsub = onSnapshot(
+    doc(db, "decrees", date),
+    (snap) => {
+      state.decree = snap.exists() ? { date, ...snap.data() } : { date };
+      if (state.currentUser) renderCurrentView();
+    },
+    (err) => console.warn("[Dictator] decree listener error:", err.message),
+  );
+}
+
+// Live listener on settings/app — keeps the sticky Dictator quote (and the
+// challenge dates) fresh. Unlike the decree, this doc is NOT keyed by date, so
+// the quote persists across days until a Dictator overwrites it.
+let _settingsUnsub = null;
+function subscribeSettings() {
+  if (!db || _settingsUnsub) return;
+  _settingsUnsub = onSnapshot(
+    doc(db, "settings", "app"),
+    (snap) => {
+      const data = snap.exists() ? snap.data() : {};
+      if (data.challengeEndDate) CONFIG.CHALLENGE_END_DATE = data.challengeEndDate;
+      if (data.challengeStartDate)
+        CONFIG.CHALLENGE_START_DATE = data.challengeStartDate;
+      state.dictatorQuote =
+        data.dictatorQuote && data.dictatorQuote.text
+          ? { text: data.dictatorQuote.text, by: data.dictatorQuote.by || null }
+          : null;
+      if (state.currentUser) renderCurrentView();
+    },
+    (err) => console.warn("[Dictator] settings listener error:", err.message),
+  );
 }
 
 function getLast7Days() {
@@ -275,17 +386,27 @@ function getInitials(name) {
 // doc id + `person` field on completions/tokens); `displayName` is optional and
 // only affects rendering. Falls back to `name` when unset.
 function getDisplayName(p) {
-  return p && typeof p.displayName === "string" && p.displayName.trim()
+  if (!p) return "";
+  // Dictator feature: the day's Plebeian is renamed everywhere (this is the one
+  // central name site, so cards/leaderboard/history/etc. all pick it up). The
+  // Dictator's name is left untouched — they get the 👑 avatar badge instead.
+  if (p.name && p.name === currentPleb()) return "Plebeian";
+  return typeof p.displayName === "string" && p.displayName.trim()
     ? p.displayName.trim()
-    : p?.name ?? "";
+    : p.name ?? "";
 }
 
 function avatarHTML(participant, className) {
   const color = getParticipantColor(participant);
+  const badge = royalBadgeHTML(participant);
+  // With a badge we let the avatar overflow so the badge can sit on its edge;
+  // the image gets its own border-radius so it stays circular regardless.
   if (participant.avatar) {
-    return `<div class="${className}" style="background:${color};padding:0;overflow:hidden;"><img src="${participant.avatar}" style="width:100%;height:100%;object-fit:cover;" alt="${getDisplayName(participant)}"></div>`;
+    const overflow = badge ? "overflow:visible;position:relative;" : "overflow:hidden;";
+    return `<div class="${className}" style="background:${color};padding:0;${overflow}"><img src="${participant.avatar}" style="width:100%;height:100%;object-fit:cover;border-radius:50%;" alt="${getDisplayName(participant)}">${badge}</div>`;
   }
-  return `<div class="${className}" style="background:${color};">${getInitials(getDisplayName(participant))}</div>`;
+  const pos = badge ? "overflow:visible;position:relative;" : "";
+  return `<div class="${className}" style="background:${color};${pos}">${getInitials(getDisplayName(participant))}${badge}</div>`;
 }
 
 function progressRingHTML(pct, color, offDay, participant) {
@@ -1055,6 +1176,9 @@ function initListeners() {
           console.warn("[Firestore] completions listener error:", err.message);
       },
     );
+
+    subscribeDecree(); // Dictator feature: live today's-decree listener
+    subscribeSettings(); // Dictator feature: live sticky quote (+ challenge dates)
   });
 }
 
@@ -1514,6 +1638,7 @@ function renderTodayView() {
   container.innerHTML = "";
 
   const d = new Date();
+  renderDictatorQuote(container); // Dictator feature: quote of the day banner (prepended)
   const weekdayEl = document.getElementById("today-weekday");
   const monthdayEl = document.getElementById("today-monthday");
   if (weekdayEl)
@@ -1832,7 +1957,7 @@ function renderTodayView() {
           : `<button class="gsm-nudge" data-nudge="${p.name}" data-done="0"${nudgesLeft ? "" : " disabled"} title="Nudge ${getDisplayName(p)}"><span class="gsm-nudge-face">👀</span><span class="gsm-nudge-word">nudge</span></button>`;
         return `
         <div class="gsm-tile${isOtherDone ? " done" : ""}${offClass}" style="--tile-color:${color}">
-          ${progressRingHTML(pct, color, isOtherOff && !isOtherDone, p)}
+          <div class="gsm-ring-wrap">${progressRingHTML(pct, color, isOtherOff && !isOtherDone, p)}${royalBadgeHTML(p)}</div>
           <div class="gsm-tile-name">${getDisplayName(p)}</div>
           ${statusLine}
           <div class="gsm-dots">${dots}</div>
@@ -2905,6 +3030,165 @@ function renderWorkoutTimesChart() {
 // RENDER: HISTORY
 // ============================================================
 
+// Map a stored identity name → its base display name (never the "Plebeian"
+// decoration), for the Hall of Dictators log.
+function baseDisplayName(name) {
+  const p = state.participants.find((x) => x.name === name);
+  return (p && p.displayName && p.displayName.trim()) || name;
+}
+
+// Lazy, lightly-cached read of the `decrees` collection (only fetched when the
+// History tab opens; ≤365 small docs over the challenge).
+let _decreesCache = { ts: 0, docs: null };
+async function getDecrees() {
+  if (_decreesCache.docs && Date.now() - _decreesCache.ts < 60000)
+    return _decreesCache.docs;
+  const snap = await getDocs(collection(db, "decrees"));
+  const docs = snap.docs.map((d) => ({ date: d.id, ...d.data() }));
+  _decreesCache = { ts: Date.now(), docs };
+  return docs;
+}
+
+// Read-only log of past reigns appended to the History tab.
+async function renderHallOfDictators(parent) {
+  if (!db) return;
+  // Reuse the History "Reports" section shell so it sits flush with the other
+  // history sections (same card, header, and inner-list rhythm).
+  const section = document.createElement("section");
+  section.className = "hh-reports hall-of-dictators";
+  section.innerHTML = `
+    <header class="hh-stats-head">
+      <div class="hh-titleline">
+        <h3 class="hh-section-title">Hall of Dictators</h3>
+        <span class="hh-subhead">· daily reigns</span>
+      </div>
+    </header>`;
+  const list = document.createElement("div");
+  list.className = "hh-reports-list hall-list";
+  const status = document.createElement("p");
+  status.className = "hall-empty";
+  status.textContent = "Loading reigns…";
+  list.appendChild(status);
+  section.appendChild(list);
+  parent.appendChild(section);
+
+  let decrees;
+  try {
+    decrees = await getDecrees();
+  } catch {
+    status.textContent = "Couldn't load reigns.";
+    return;
+  }
+
+  const fmt = (dateStr) =>
+    new Date(dateStr + "T00:00:00").toLocaleDateString("en-US", {
+      month: "short",
+      day: "numeric",
+    });
+
+  // Collapse consecutive calendar days under the same Dictator into one reign
+  // (e.g. a 3-day run shows as a single "3-day reign" entry, not three rows).
+  const dictOf = (d) => d.overrideDictator || d.dictator || null;
+  const nextDay = (dateStr) => {
+    const dt = new Date(dateStr + "T00:00:00");
+    dt.setDate(dt.getDate() + 1);
+    return `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, "0")}-${String(dt.getDate()).padStart(2, "0")}`;
+  };
+
+  const chrono = decrees
+    .filter((d) => dictOf(d)) // need a Dictator to attribute a reign
+    .sort((a, b) => (a.date < b.date ? -1 : 1)); // oldest → newest
+
+  const reigns = [];
+  for (const d of chrono) {
+    const dict = dictOf(d);
+    const last = reigns[reigns.length - 1];
+    if (last && last.dict === dict && nextDay(last.end) === d.date) {
+      last.end = d.date;
+      last.days += 1;
+      if (d.pleb && !last.plebs.includes(d.pleb)) last.plebs.push(d.pleb);
+      if (d.quote) last.quote = d.quote; // keep the latest quote of the reign
+    } else {
+      reigns.push({
+        dict,
+        start: d.date,
+        end: d.date,
+        days: 1,
+        plebs: d.pleb ? [d.pleb] : [],
+        quote: d.quote || "",
+      });
+    }
+  }
+  reigns.reverse(); // newest reign first
+
+  if (!reigns.length) {
+    status.textContent = "No reigns yet — nobody's worn the crown.";
+    return;
+  }
+
+  list.textContent = "";
+  reigns.forEach((r, i) => {
+    const row = document.createElement("div");
+    row.className = "hall-reign";
+    row.style.setProperty("--i", i); // staggered reveal
+
+    const crown = document.createElement("span");
+    crown.className = "hall-reign-crown";
+    crown.textContent = "👑";
+
+    const body = document.createElement("div");
+    body.className = "hall-reign-body";
+
+    const top = document.createElement("div");
+    top.className = "hall-reign-top";
+
+    const dict = document.createElement("span");
+    dict.className = "hall-reign-dict";
+    dict.textContent = baseDisplayName(r.dict);
+    top.appendChild(dict);
+
+    if (r.days > 1) {
+      const streak = document.createElement("span");
+      streak.className = "hall-reign-streak";
+      streak.textContent = `${r.days}-day reign`;
+      top.appendChild(streak);
+    }
+
+    const verdict = document.createElement("span");
+    verdict.className = "hall-reign-verdict";
+    if (r.plebs.length) {
+      verdict.append("demoted ");
+      r.plebs.forEach((name, idx) => {
+        const pleb = document.createElement("span");
+        pleb.className = "hall-reign-pleb";
+        pleb.textContent = baseDisplayName(name);
+        verdict.appendChild(pleb);
+        if (idx < r.plebs.length - 1) verdict.append(" · ");
+      });
+    } else {
+      verdict.textContent = "ruled mercifully";
+      verdict.classList.add("merciful");
+    }
+    top.appendChild(verdict);
+    body.appendChild(top);
+
+    if (r.quote) {
+      const q = document.createElement("p");
+      q.className = "hall-reign-quote";
+      q.textContent = `“${r.quote}”`;
+      body.appendChild(q);
+    }
+
+    const date = document.createElement("time");
+    date.className = "hall-reign-date";
+    date.textContent =
+      r.days > 1 ? `${fmt(r.start)} – ${fmt(r.end)}` : fmt(r.start);
+
+    row.append(crown, body, date);
+    list.appendChild(row);
+  });
+}
+
 async function renderHistory() {
   const container = document.getElementById("history-container");
   container.innerHTML = "";
@@ -3201,6 +3485,9 @@ async function renderHistory() {
       .forEach((b) => b.classList.remove("is-active"));
     btn.classList.add("is-active");
   });
+
+  // Dictator feature: append the read-only Hall of Dictators log.
+  renderHallOfDictators(container);
 }
 
 // ============================================================
@@ -3278,6 +3565,79 @@ function renderAdmin() {
     notifEl.textContent =
       "⚠️ This browser does not support push notifications.";
   }
+
+  renderDictatorAdminPicker();
+}
+
+// Admin control: crown a specific participant as today's Dictator, or hand it
+// back to the random election. Stored as `overrideDictator` on today's decree.
+function renderDictatorAdminPicker() {
+  const picker = document.getElementById("dictator-admin-picker");
+  const hint = document.getElementById("dictator-admin-hint");
+  if (!picker) return;
+
+  const today = getUTCTodayStr();
+  const override =
+    state.decree && state.decree.date === today
+      ? state.decree.overrideDictator
+      : null;
+  const active = currentDictator();
+
+  if (hint) {
+    hint.textContent = override
+      ? "Override active — you've hand-picked today's Dictator."
+      : "Random by default. Tap a name to crown someone for today instead.";
+  }
+
+  picker.innerHTML = "";
+
+  const autoBtn = document.createElement("button");
+  autoBtn.type = "button";
+  autoBtn.className = "dictator-pick" + (override ? "" : " active");
+  autoBtn.textContent = "🎲 Random";
+  autoBtn.addEventListener("click", () => setOverrideDictator(null));
+  picker.appendChild(autoBtn);
+
+  state.participants.forEach((p) => {
+    const btn = document.createElement("button");
+    btn.type = "button";
+    const base = (p.displayName && p.displayName.trim()) || p.name;
+    const isActive = p.name === active;
+    btn.className = "dictator-pick" + (override === p.name ? " active" : "");
+    btn.textContent = (isActive ? "👑 " : "") + base;
+    btn.addEventListener("click", () => setOverrideDictator(p.name));
+    picker.appendChild(btn);
+  });
+}
+
+// Write (or clear) the override. Passing null hands the crown back to random.
+async function setOverrideDictator(name) {
+  if (!db) return;
+  const date = getUTCTodayStr();
+  const prev = state.decree;
+  const base = state.decree && state.decree.date === date ? state.decree : { date };
+  // null override is treated as "no override" by currentDictator() — no
+  // deleteField() needed, keeps the import surface unchanged.
+  state.decree = { ...base, date, overrideDictator: name || null };
+  renderAdmin();
+
+  try {
+    await setDoc(
+      doc(db, "decrees", date),
+      { overrideDictator: name || null },
+      { merge: true },
+    );
+    showToast(
+      name
+        ? `${name} crowned Dictator for today 👑`
+        : "Dictator handed back to random 🎲",
+      "success",
+    );
+  } catch (err) {
+    state.decree = prev;
+    renderAdmin();
+    showToast("Failed to update Dictator: " + err.message, "error");
+  }
 }
 
 // ============================================================
@@ -3292,14 +3652,16 @@ function renderHeader() {
   const color = getParticipantColor(state.currentUser);
   const avatarEl = document.getElementById("header-avatar");
   avatarEl.style.background = color;
+  const badge = royalBadgeHTML(me);
+  avatarEl.style.position = badge ? "relative" : "";
   if (state.currentUser.avatar) {
     avatarEl.style.padding = "0";
-    avatarEl.style.overflow = "hidden";
-    avatarEl.innerHTML = `<img src="${state.currentUser.avatar}" style="width:100%;height:100%;object-fit:cover;" alt="${getDisplayName(me)}">`;
+    avatarEl.style.overflow = badge ? "visible" : "hidden";
+    avatarEl.innerHTML = `<img src="${state.currentUser.avatar}" style="width:100%;height:100%;object-fit:cover;border-radius:50%;" alt="${getDisplayName(me)}">${badge}`;
   } else {
     avatarEl.style.padding = "";
-    avatarEl.style.overflow = "";
-    avatarEl.textContent = getInitials(getDisplayName(me));
+    avatarEl.style.overflow = badge ? "visible" : "";
+    avatarEl.innerHTML = `${getInitials(getDisplayName(me))}${badge}`;
   }
   document.getElementById("header-name").textContent = "Profile";
 }
@@ -3841,6 +4203,258 @@ function showGroupCompleteOverlay() {
 }
 
 // ============================================================
+// DICTATOR — appointment popup + demotion
+// ============================================================
+
+// Once-per-UTC-day guard for the appointment popup (key is the date itself, so
+// it naturally resets when the day rolls over).
+function dictatorPopupSeen() {
+  try {
+    return localStorage.getItem("np_dictator_seen") === getUTCTodayStr();
+  } catch {
+    return false;
+  }
+}
+function markDictatorPopupSeen() {
+  try {
+    localStorage.setItem("np_dictator_seen", getUTCTodayStr());
+  } catch {}
+}
+
+// Show the appointment popup iff the logged-in user is today's Dictator and
+// hasn't seen it yet today.
+function maybeShowDictatorPopup() {
+  if (!state.currentUser) return;
+  if (currentDictator() !== state.currentUser.name) return;
+  if (dictatorPopupSeen()) return;
+  if (document.querySelector(".dictator-overlay")) return;
+  markDictatorPopupSeen();
+  showDictatorPopup();
+}
+
+function showDictatorPopup() {
+  document.querySelector(".dictator-overlay")?.remove();
+
+  const me = state.currentUser.name;
+  const others = state.participants.filter((p) => p.name !== me);
+
+  const overlay = document.createElement("div");
+  overlay.className = "group-complete-overlay dictator-overlay";
+
+  const choicesHTML = others
+    .map((p) => {
+      const color = getParticipantColor(p);
+      // Use the raw name here, not getDisplayName (which would say "Plebeian"
+      // for an already-demoted teammate).
+      const base = (p.displayName && p.displayName.trim()) || p.name;
+      const inner = p.avatar
+        ? `<img src="${p.avatar}" style="width:100%;height:100%;object-fit:cover;border-radius:50%;" alt="${base}">`
+        : getInitials(base);
+      return `<button class="dictator-choice" data-demote="${p.name}">
+          <span class="dictator-choice-av" style="background:${color};">${inner}</span>
+          <span class="dictator-choice-name">${base}</span>
+        </button>`;
+    })
+    .join("");
+
+  overlay.innerHTML = `
+    <h1 class="glory-title">👑 DICTATOR 👑</h1>
+    <p class="glory-subtitle">You have been appointed Dictator for the day.<br>Demote one peasant to <strong>Plebeian</strong>:</p>
+    <div class="dictator-choices">${choicesHTML}</div>
+    <button class="dictator-skip" data-skip="1">Spare them all 🙏</button>
+  `;
+
+  const dismiss = () => {
+    overlay.style.transition = "opacity 0.4s";
+    overlay.style.opacity = "0";
+    setTimeout(() => overlay.remove(), 400);
+  };
+
+  // Require a deliberate choice or skip — backdrop taps don't dismiss.
+  overlay.addEventListener("click", (e) => {
+    const demoteBtn = e.target.closest("[data-demote]");
+    if (demoteBtn) {
+      decreeDemotion(demoteBtn.getAttribute("data-demote"));
+      dismiss();
+    } else if (e.target.closest("[data-skip]")) {
+      dismiss();
+    }
+  });
+
+  document.body.appendChild(overlay);
+}
+
+// The Dictator demotes a teammate to Plebeian for the day. Optimistic write to
+// the day's decree doc (merge so it doesn't clobber an existing quote).
+async function decreeDemotion(targetName) {
+  if (!state.currentUser || !db) return;
+  const me = state.currentUser.name;
+  if (currentDictator() !== me) return; // only today's Dictator may demote
+  const date = getUTCTodayStr();
+  const prev = state.decree;
+  const quote =
+    (state.decree && state.decree.date === date && state.decree.quote) || "";
+
+  state.decree = { date, dictator: me, pleb: targetName, quote };
+  renderCurrentView();
+  showToast(`${targetName} has been demoted to Plebeian`, "info");
+
+  try {
+    await setDoc(
+      doc(db, "decrees", date),
+      { dictator: me, pleb: targetName, quote },
+      { merge: true },
+    );
+  } catch (err) {
+    state.decree = prev;
+    renderCurrentView();
+    showToast("Failed to demote: " + err.message, "error");
+  }
+}
+
+// Quote of the day — a "royal proclamation" pull-quote on the Today page.
+// It's STICKY (state.dictatorQuote from settings/app): the last decreed quote
+// stays put across days until a Dictator overwrites it. Today's Dictator edits
+// it inline; everyone else reads it (hidden only when no quote has ever been set
+// and the viewer isn't the Dictator).
+function renderDictatorQuote(container) {
+  const q = state.dictatorQuote; // { text, by } | null
+  const dictator = currentDictator();
+  const isDictator =
+    state.currentUser && state.currentUser.name === dictator;
+  if (!q && !isDictator) return;
+
+  const el = document.createElement("div");
+  el.className = "proclamation" + (isDictator ? " editable" : "");
+
+  const mark = document.createElement("span");
+  mark.className = "proclamation-mark";
+  mark.setAttribute("aria-hidden", "true");
+  mark.textContent = "“";
+
+  const text = document.createElement("p");
+  text.className = "proclamation-text";
+  if (q && q.text) {
+    text.textContent = q.text;
+  } else {
+    text.classList.add("placeholder");
+    text.textContent = "Decree your quote of the day…";
+  }
+  el.append(mark, text);
+
+  if (q && q.text) {
+    const by = document.createElement("div");
+    by.className = "proclamation-by";
+    const seal = document.createElement("span");
+    seal.className = "proclamation-seal";
+    seal.setAttribute("aria-hidden", "true");
+    seal.textContent = "👑";
+    const who = document.createElement("span");
+    who.className = "proclamation-author";
+    who.textContent =
+      q.by && state.currentUser && q.by === state.currentUser.name
+        ? "You"
+        : baseDisplayName(q.by || dictator);
+    by.append(seal, who);
+    el.appendChild(by);
+  }
+
+  if (isDictator) {
+    const editCue = document.createElement("button");
+    editCue.type = "button";
+    editCue.className = "proclamation-edit-cue";
+    editCue.title = "Edit regime reminder";
+    editCue.setAttribute("aria-label", "Edit regime reminder");
+    editCue.textContent = "✎";
+    el.appendChild(editCue);
+
+    text.setAttribute("role", "button");
+    text.tabIndex = 0;
+    text.title = "Tap to edit the regime reminder";
+    const startEdit = () => {
+      const target = el.querySelector(".proclamation-text");
+      if (target) editDictatorQuote(target);
+    };
+    text.addEventListener("click", startEdit);
+    editCue.addEventListener("click", startEdit);
+    text.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") {
+        e.preventDefault();
+        startEdit();
+      }
+    });
+  }
+
+  container.prepend(el);
+}
+
+function editDictatorQuote(span) {
+  const me = state.currentUser?.name;
+  if (!me || currentDictator() !== me) return;
+
+  const input = document.createElement("input");
+  input.type = "text";
+  input.maxLength = 140;
+  input.value = state.dictatorQuote?.text || "";
+  input.className = "proclamation-input";
+  input.placeholder = "Your quote of the day…";
+  span.replaceWith(input);
+  input.focus();
+  input.select();
+
+  let done = false;
+  const commit = () => {
+    if (done) return;
+    done = true;
+    saveDictatorQuote(input.value.trim());
+    renderTodayView();
+  };
+  input.addEventListener("blur", commit);
+  input.addEventListener("keydown", (e) => {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      input.blur();
+    }
+    if (e.key === "Escape") {
+      e.preventDefault();
+      input.removeEventListener("blur", commit);
+      done = true;
+      renderTodayView();
+    }
+  });
+}
+
+// Save the quote. Primary write is the sticky settings doc (persists across
+// days, open write rules); we also stamp today's decree for the Hall log.
+async function saveDictatorQuote(text) {
+  if (!state.currentUser || !db) return;
+  const me = state.currentUser.name;
+  if (currentDictator() !== me) return;
+  const date = getUTCTodayStr();
+  const prev = state.dictatorQuote;
+  state.dictatorQuote = text ? { text, by: me } : null;
+
+  try {
+    await setDoc(
+      doc(db, "settings", "app"),
+      { dictatorQuote: text ? { text, by: me } : null },
+      { merge: true },
+    );
+  } catch (err) {
+    state.dictatorQuote = prev;
+    renderTodayView();
+    showToast("Failed to save quote: " + err.message, "error");
+    return;
+  }
+  // Best-effort: record this reign's quote on today's decree for the Hall.
+  setDoc(
+    doc(db, "decrees", date),
+    { dictator: me, quote: text },
+    { merge: true },
+  ).catch(() => {});
+}
+
+// ============================================================
 // NOTIFICATIONS
 // ============================================================
 
@@ -3965,6 +4579,7 @@ function showApp() {
   initNotifications();
   advanceFineCheckpoints(); // fire-and-forget: advance stored aggregates to yesterday
   syncTimezoneOffset();
+  maybeShowDictatorPopup(); // Dictator feature: offer demotion if you're today's Dictator
 }
 
 // ============================================================
@@ -4480,6 +5095,7 @@ async function init() {
 }
 
 // Day rollover check — update todayStr at midnight; onSnapshot keeps data fresh
+let _lastUtcDay = getUTCTodayStr();
 setInterval(() => {
   const newDay = getTodayStr();
   if (newDay !== state.todayStr) {
@@ -4492,6 +5108,19 @@ setInterval(() => {
     advanceFineCheckpoints(); // advance stored aggregates before rebuilding cache
     rebuildCache();
     renderCurrentView();
+  }
+
+  // Dictator feature: the decree doc is keyed by UTC date, which can roll over
+  // at a different moment than the local day. Re-point the listener and, if the
+  // logged-in user is the new day's Dictator, offer the appointment popup.
+  const newUtcDay = getUTCTodayStr();
+  if (newUtcDay !== _lastUtcDay) {
+    _lastUtcDay = newUtcDay;
+    subscribeDecree();
+    if (state.currentUser) {
+      renderCurrentView();
+      maybeShowDictatorPopup();
+    }
   }
 }, 60000);
 
