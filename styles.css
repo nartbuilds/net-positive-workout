@@ -4050,3 +4050,36 @@ body.group-glory-day #app {
   white-space: nowrap;
   padding-top: 3px;
 }
+
+/* Usage analytics — opens-by-hour histogram (admin) */
+.usage-hour-chart {
+  min-height: 120px;
+}
+.uhc-empty {
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+  text-align: center;
+  padding: 28px 0;
+}
+.uhc-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+.uhc-title {
+  font-size: 0.9rem;
+  font-weight: 700;
+}
+.uhc-sub {
+  font-size: 0.72rem;
+  color: var(--text-secondary);
+  font-family: var(--font-mono);
+}
+.uhc-foot {
+  font-size: 0.68rem;
+  color: var(--text-secondary);
+  margin-top: 8px;
+  text-align: center;
+}

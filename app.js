@@ -3638,6 +3638,7 @@ function renderAdmin() {
   }
 
   renderDictatorAdminPicker();
+  renderUsageHourChart(); // usage analytics: opens-by-hour histogram (async)
 }
 
 // Admin control: crown a specific participant as today's Dictator, or hand it
@@ -4674,6 +4675,125 @@ function recordUsageOpen() {
     },
     { merge: true },
   ).catch(() => {}); // fire-and-forget, like syncTimezoneOffset
+}
+
+// Lightly-cached read of recent usage docs (admin chart only). ~4 users × 7
+// days ≈ 28 small docs, 60s-cached, so opening the Admin tab is cheap.
+let _analyticsCache = { ts: 0, docs: null };
+async function getRecentAnalytics(fromDate) {
+  if (_analyticsCache.docs && Date.now() - _analyticsCache.ts < 60000)
+    return _analyticsCache.docs;
+  const snap = await getDocs(
+    query(collection(db, "analytics"), where("date", ">=", fromDate)),
+  );
+  const docs = snap.docs.map((d) => d.data());
+  _analyticsCache = { ts: Date.now(), docs };
+  return docs;
+}
+
+// Admin "Opens by hour" chart: a combined line graph with one line per person,
+// each hour summed over the last 7 days. Each openTime stores the person's own
+// local time, so the hour is read straight off the ISO string (chars 11–12),
+// matching getWorkoutTimesChartData's approach. Geometry mirrors that chart.
+async function renderUsageHourChart() {
+  const el = document.getElementById("usage-hour-chart");
+  if (!el || !db) return;
+  el.innerHTML = `<p class="uhc-empty">Loading…</p>`;
+
+  let docs;
+  try {
+    docs = await getRecentAnalytics(dateStrDaysAgo(6)); // today + prior 6 = 7 days
+  } catch {
+    el.innerHTML = `<p class="uhc-empty">Couldn't load usage data.</p>`;
+    return;
+  }
+
+  // Per-person hourly open counts (24 buckets), summed over the window.
+  const series = state.participants.map((p) => {
+    const counts = new Array(24).fill(0);
+    for (const d of docs) {
+      if (d.person !== p.name) continue;
+      for (const t of d.openTimes || []) {
+        const hh = parseInt(String(t).slice(11, 13), 10);
+        if (hh >= 0 && hh <= 23) counts[hh]++;
+      }
+    }
+    return { name: getDisplayName(p), color: getParticipantColor(p), counts };
+  });
+
+  const total = series.reduce(
+    (sum, s) => sum + s.counts.reduce((a, b) => a + b, 0),
+    0,
+  );
+  if (!total) {
+    el.innerHTML = `<p class="uhc-empty">No opens recorded yet.</p>`;
+    return;
+  }
+
+  const maxCount = Math.max(1, ...series.map((s) => Math.max(...s.counts)));
+
+  const W = 600,
+    H = 200,
+    PL = 30,
+    PR = 12,
+    PT = 14,
+    PB = 30;
+  const CW = W - PL - PR;
+  const CH = H - PT - PB;
+  const xFor = (h) => PL + (h / 23) * CW;
+  const yFor = (c) => PT + (1 - c / maxCount) * CH;
+
+  // Horizontal grid + integer Y labels (~4 ticks)
+  const step = Math.max(1, Math.ceil(maxCount / 4));
+  let grid = "";
+  let yLabels = "";
+  for (let c = 0; c <= maxCount; c += step) {
+    const y = yFor(c);
+    grid += `<line x1="${PL}" y1="${y}" x2="${W - PR}" y2="${y}" stroke="rgba(255,255,255,0.07)" stroke-width="1"/>`;
+    yLabels += `<text x="${PL - 6}" y="${y + 4}" text-anchor="end" fill="#a5a5c8" font-size="11" font-weight="600">${c}</text>`;
+  }
+
+  // X labels every 6h + the final hour
+  let xLabels = "";
+  for (const h of [0, 6, 12, 18, 23]) {
+    xLabels += `<text x="${xFor(h)}" y="${H - PB + 18}" text-anchor="middle" fill="#a5a5c8" font-size="11" font-weight="600">${String(h).padStart(2, "0")}</text>`;
+  }
+
+  // One polyline per person across all 24 hours (zeros are real data points);
+  // dots only on non-zero hours, each with a hover detail.
+  let seriesSVG = "";
+  for (const s of series) {
+    const pts = s.counts.map((c, h) => `${xFor(h)},${yFor(c)}`).join(" ");
+    seriesSVG += `<polyline points="${pts}" fill="none" stroke="${s.color}" stroke-width="2" stroke-opacity="0.75" stroke-linejoin="round" stroke-linecap="round"/>`;
+    for (let h = 0; h < 24; h++) {
+      if (!s.counts[h]) continue;
+      seriesSVG += `<circle cx="${xFor(h)}" cy="${yFor(s.counts[h])}" r="2.6" fill="${s.color}" stroke="#0a0a0f" stroke-width="1"><title>${s.name}: ${String(h).padStart(2, "0")}:00 — ${s.counts[h]} open${s.counts[h] === 1 ? "" : "s"}</title></circle>`;
+    }
+  }
+
+  const legend = series
+    .map(
+      (s) =>
+        `<span class="chart-legend-item"><svg width="10" height="10" viewBox="0 0 10 10"><circle cx="5" cy="5" r="4" fill="${s.color}"/></svg>${s.name}</span>`,
+    )
+    .join("");
+
+  el.innerHTML = `
+    <div class="uhc-head">
+      <span class="uhc-title">Opens by hour</span>
+      <span class="uhc-sub">last 7 days · ${total} open${total === 1 ? "" : "s"}</span>
+    </div>
+    <svg viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg" style="width:100%;display:block;">
+      ${grid}
+      <line x1="${PL}" y1="${PT}" x2="${PL}" y2="${H - PB}" stroke="rgba(255,255,255,0.12)" stroke-width="1"/>
+      <line x1="${PL}" y1="${H - PB}" x2="${W - PR}" y2="${H - PB}" stroke="rgba(255,255,255,0.12)" stroke-width="1"/>
+      ${yLabels}
+      ${xLabels}
+      ${seriesSVG}
+    </svg>
+    <div class="chart-legend">${legend}</div>
+    <div class="uhc-foot">each member's local time</div>
+  `;
 }
 
 function showApp() {
