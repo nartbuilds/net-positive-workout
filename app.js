@@ -168,6 +168,49 @@ function getTodayStr() {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 }
 
+// ---- Completions split-window cache ----------------------------------------
+// Completion docs are write-once on their own day (saveCompletion only ever
+// writes date === today), so any day older than the volatile window never
+// changes. We cache those stable docs in localStorage and only subscribe live
+// to the recent days — turning a ~810-doc read on every load into ~70.
+const COMPLETIONS_CACHE_KEY = "np_completions_cache";
+const COMPLETIONS_CACHE_VERSION = 1;
+const VOLATILE_DAYS = 7; // last N days are fetched live; older days come from cache
+
+function dateStrDaysAgo(n) {
+  const d = new Date();
+  d.setDate(d.getDate() - n);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+
+function addDaysToDateStr(dateStr, delta) {
+  const d = new Date(dateStr + "T00:00:00");
+  d.setDate(d.getDate() + delta);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+
+function loadCompletionsCache() {
+  try {
+    const c = JSON.parse(localStorage.getItem(COMPLETIONS_CACHE_KEY));
+    if (!c || c.version !== COMPLETIONS_CACHE_VERSION || !Array.isArray(c.docs))
+      return null;
+    return c; // { version, cachedThrough, docs }
+  } catch {
+    return null;
+  }
+}
+
+function saveCompletionsCache(cachedThrough, docs) {
+  try {
+    localStorage.setItem(
+      COMPLETIONS_CACHE_KEY,
+      JSON.stringify({ version: COMPLETIONS_CACHE_VERSION, cachedThrough, docs }),
+    );
+  } catch {
+    // localStorage full/unavailable — non-fatal; we just re-read next load.
+  }
+}
+
 // ============================================================
 // DICTATOR — each day one member is deterministically "elected" Dictator
 // (no backend: every device computes the same answer from the UTC date +
@@ -183,7 +226,7 @@ function getUTCTodayStr() {
   return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}-${String(d.getUTCDate()).padStart(2, "0")}`;
 }
 
-// FNV-1a → 0..1 float (same hash used by seedTestData), deterministic per string.
+// FNV-1a → 0..1 float, deterministic per string.
 function fracHash(s) {
   let h = 0x811c9dc5;
   for (let i = 0; i < s.length; i++)
@@ -1154,19 +1197,46 @@ function initListeners() {
       },
     );
 
-    const ninetyDaysAgo = (() => {
-      const d = new Date();
-      d.setDate(d.getDate() - 90);
-      return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-    })();
+    const ninetyDaysAgo = dateStrDaysAgo(90);
+    const volatileFrom = dateStrDaysAgo(VOLATILE_DAYS); // start of the live window
+
+    // Split-window: serve stable older days from localStorage, subscribe live
+    // only to the volatile recent days. `liveFrom` normally = volatileFrom, but
+    // backs up to fill any gap since the cache was last written (e.g. app idle
+    // for weeks) — never earlier than the 90-day window.
+    const cache = loadCompletionsCache();
+    let liveFrom = ninetyDaysAgo;
+    let coldDocs = [];
+    if (cache) {
+      liveFrom = volatileFrom;
+      const afterCached = addDaysToDateStr(cache.cachedThrough, 1);
+      if (afterCached < liveFrom) liveFrom = afterCached; // fill gap
+      if (liveFrom < ninetyDaysAgo) liveFrom = ninetyDaysAgo;
+      coldDocs = cache.docs.filter(
+        (c) => c.date >= ninetyDaysAgo && c.date < liveFrom,
+      );
+    }
 
     onSnapshot(
-      query(collection(db, "completions"), where("date", ">=", ninetyDaysAgo)),
+      query(collection(db, "completions"), where("date", ">=", liveFrom)),
       (snap) => {
-        state.completions = snap.docs.map((d) => d.data());
+        const liveDocs = snap.docs.map((d) => d.data());
+        // Cold (cached) and live docs are disjoint by date, so a plain concat
+        // is dedup-safe.
+        state.completions = coldDocs.concat(liveDocs);
         // Re-apply any in-flight optimistic writes so a snapshot for one
         // exercise doesn't visually revert another exercise mid-save.
         applyPendingOptimistic();
+
+        // Promote now-stable days (older than the volatile window) into the
+        // cache so the next reload reads even fewer docs, and prune anything
+        // past the 90-day window.
+        const cacheThrough = addDaysToDateStr(volatileFrom, -1);
+        const stable = state.completions.filter(
+          (c) => c.date >= ninetyDaysAgo && c.date <= cacheThrough,
+        );
+        saveCompletionsCache(cacheThrough, stable);
+
         gotCompletions = true;
         if (gotParticipants) onBothLoaded();
       },
@@ -4759,10 +4829,6 @@ function bindEvents() {
   });
 
   document
-    .getElementById("btn-seed-data")
-    .addEventListener("click", () => seedTestData(60));
-
-  document
     .getElementById("btn-reset-squad-glory")
     .addEventListener("click", () => {
       localStorage.removeItem("np_group_glory");
@@ -4923,96 +4989,6 @@ async function handleRemoveParticipant() {
     btn.textContent = "Yes, Remove";
     removeTargetName = null;
   }
-}
-
-// ============================================================
-// DEV: SEED TEST DATA
-// ============================================================
-
-async function seedTestData(daysBack = 60) {
-  if (!db) {
-    showToast("No database connection", "error");
-    return;
-  }
-  if (!state.participants.length) {
-    showToast("No participants found", "error");
-    return;
-  }
-
-  const btn = document.getElementById("btn-seed-data");
-  if (btn) {
-    btn.disabled = true;
-    btn.textContent = "Seeding…";
-  }
-
-  // Simple deterministic hash → 0..1 float
-  function frac(s) {
-    let h = 0x811c9dc5;
-    for (let i = 0; i < s.length; i++)
-      h = Math.imul(h ^ s.charCodeAt(i), 0x01000193);
-    return (h >>> 0) / 0xffffffff;
-  }
-
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  const start = new Date(today);
-  start.setDate(start.getDate() - daysBack);
-  const startStr = `${start.getFullYear()}-${String(start.getMonth() + 1).padStart(2, "0")}-${String(start.getDate()).padStart(2, "0")}`;
-
-  // Push joinedDates back so history tab shows all days
-  for (const p of state.participants) {
-    if (!p.joinedDate || p.joinedDate > startStr) {
-      p.joinedDate = startStr;
-      await setDoc(doc(db, "participants", p.name), p);
-    }
-  }
-
-  // Build all completion docs
-  const writes = [];
-  for (const p of state.participants) {
-    const d = new Date(start);
-    while (d < today) {
-      const dateStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-      const dayRoll = frac(p.name + dateStr);
-
-      for (const ex of CONFIG.EXERCISES) {
-        let completed;
-        if (dayRoll < 0.68) {
-          completed = true; // ~68% fully-complete days
-        } else if (dayRoll < 0.88) {
-          completed = frac(p.name + dateStr + ex.id) < 0.5; // partial: 50/50 per exercise
-        } else {
-          completed = false; // ~12% total-miss days
-        }
-        writes.push({
-          docId: `${dateStr}_${p.name}_${ex.id}`,
-          item: { date: dateStr, person: p.name, exercise: ex.id, completed },
-        });
-      }
-      d.setDate(d.getDate() + 1);
-    }
-  }
-
-  showToast(`Writing ${writes.length} records…`, "info");
-
-  // Write in parallel chunks of 50
-  for (let i = 0; i < writes.length; i += 50) {
-    await Promise.all(
-      writes
-        .slice(i, i + 50)
-        .map(({ docId, item }) => setDoc(doc(db, "completions", docId), item)),
-    );
-  }
-
-  showToast(
-    `Seeded ${writes.length} records across ${daysBack} days!`,
-    "success",
-  );
-  if (btn) {
-    btn.disabled = false;
-    btn.textContent = "Seed Test Data (60 days)";
-  }
-  // onSnapshot listeners will pick up the new data and re-render automatically
 }
 
 // ============================================================
