@@ -17,6 +17,7 @@ import {
   query,
   where,
   updateDoc,
+  arrayUnion,
 } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 import {
   getMessaging,
@@ -4638,6 +4639,43 @@ function syncTimezoneOffset() {
   }).catch(() => {});
 }
 
+// ============================================================
+// USAGE ANALYTICS — capture each app open, per person per local day.
+// Duration is NOT tracked (just the timestamp of every open). Append-only via
+// arrayUnion, so there's no read and no read-modify-write. Rapid re-focuses
+// within 30 min of the same day count as one session and aren't double-logged.
+// Doc: analytics/{YYYY-MM-DD}_{name} = { date, person, tzOffset, device,
+// updatedAt, openTimes: [<local ISO>, ...] }.
+// ============================================================
+let _lastUsageOpenMs = 0;
+let _lastUsageDay = "";
+
+function recordUsageOpen() {
+  if (!db || !state.currentUser) return; // never track logged-out screens
+  const today = getTodayStr();
+  const now = Date.now();
+  // Same session (re-focus within 30 min on the same day) → don't double-count.
+  if (today === _lastUsageDay && now - _lastUsageOpenMs < 30 * 60 * 1000) return;
+  _lastUsageOpenMs = now;
+  _lastUsageDay = today;
+
+  const name = state.currentUser.name;
+  const nowIso = localISOString(new Date());
+  setDoc(
+    doc(db, "analytics", `${today}_${name}`),
+    {
+      date: today,
+      person: name,
+      tzOffset:
+        state.currentUser.timezoneOffset ?? new Date().getTimezoneOffset(),
+      device: navigator.userAgent.slice(0, 80),
+      updatedAt: nowIso,
+      openTimes: arrayUnion(nowIso),
+    },
+    { merge: true },
+  ).catch(() => {}); // fire-and-forget, like syncTimezoneOffset
+}
+
 function showApp() {
   showScreen("app");
   renderHeader();
@@ -4649,6 +4687,7 @@ function showApp() {
   initNotifications();
   advanceFineCheckpoints(); // fire-and-forget: advance stored aggregates to yesterday
   syncTimezoneOffset();
+  recordUsageOpen(); // usage analytics: log this app open
   maybeShowDictatorPopup(); // Dictator feature: offer demotion if you're today's Dictator
 }
 
@@ -4771,6 +4810,7 @@ function bindEvents() {
   document.addEventListener("visibilitychange", () => {
     if (document.visibilityState !== "visible") return;
     syncTimezoneOffset();
+    recordUsageOpen(); // usage analytics: a re-focus may be a new session
   });
 
   document.querySelectorAll(".nav-item").forEach((btn) => {
