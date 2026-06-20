@@ -4691,10 +4691,10 @@ async function getRecentAnalytics(fromDate) {
   return docs;
 }
 
-// Admin "Opens by hour" chart: a combined line graph with one line per person,
-// each hour summed over the last 7 days. Each openTime stores the person's own
-// local time, so the hour is read straight off the ISO string (chars 11–12),
-// matching getWorkoutTimesChartData's approach. Geometry mirrors that chart.
+// Admin "Opens by hour" chart: a stacked bar graph with one bar per hour,
+// each bar segmented by person and summed over the last 7 days. Each openTime
+// stores the person's own local time, so the hour is read straight off the ISO
+// string (chars 11–12), matching getWorkoutTimesChartData's approach.
 async function renderUsageHourChart() {
   const el = document.getElementById("usage-hour-chart");
   if (!el || !db) return;
@@ -4730,7 +4730,11 @@ async function renderUsageHourChart() {
     return;
   }
 
-  const maxCount = Math.max(1, ...series.map((s) => Math.max(...s.counts)));
+  // Total opens per hour (height of each stacked bar)
+  const hourTotals = new Array(24)
+    .fill(0)
+    .map((_, h) => series.reduce((sum, s) => sum + s.counts[h], 0));
+  const maxCount = Math.max(1, ...hourTotals);
 
   const W = 600,
     H = 200,
@@ -4740,7 +4744,10 @@ async function renderUsageHourChart() {
     PB = 30;
   const CW = W - PL - PR;
   const CH = H - PT - PB;
-  const xFor = (h) => PL + (h / 23) * CW;
+  // Each hour gets an evenly-spaced slot; the bar is centred in its slot.
+  const slotW = CW / 24;
+  const barW = slotW * 0.7;
+  const xFor = (h) => PL + (h + 0.5) * slotW;
   const yFor = (c) => PT + (1 - c / maxCount) * CH;
 
   // Horizontal grid + integer Y labels (~4 ticks)
@@ -4759,15 +4766,20 @@ async function renderUsageHourChart() {
     xLabels += `<text x="${xFor(h)}" y="${H - PB + 18}" text-anchor="middle" fill="#a5a5c8" font-size="11" font-weight="600">${String(h).padStart(2, "0")}</text>`;
   }
 
-  // One polyline per person across all 24 hours (zeros are real data points);
-  // dots only on non-zero hours, each with a hover detail.
+  // One stacked bar per hour: each person is a coloured segment, stacked from
+  // the baseline up. Each segment carries a hover detail.
   let seriesSVG = "";
-  for (const s of series) {
-    const pts = s.counts.map((c, h) => `${xFor(h)},${yFor(c)}`).join(" ");
-    seriesSVG += `<polyline points="${pts}" fill="none" stroke="${s.color}" stroke-width="2" stroke-opacity="0.75" stroke-linejoin="round" stroke-linecap="round"/>`;
-    for (let h = 0; h < 24; h++) {
-      if (!s.counts[h]) continue;
-      seriesSVG += `<circle cx="${xFor(h)}" cy="${yFor(s.counts[h])}" r="2.6" fill="${s.color}" stroke="#0a0a0f" stroke-width="1"><title>${s.name}: ${String(h).padStart(2, "0")}:00 — ${s.counts[h]} open${s.counts[h] === 1 ? "" : "s"}</title></circle>`;
+  for (let h = 0; h < 24; h++) {
+    if (!hourTotals[h]) continue;
+    const x = xFor(h) - barW / 2;
+    let cum = 0;
+    for (const s of series) {
+      const c = s.counts[h];
+      if (!c) continue;
+      const yTop = yFor(cum + c);
+      const segH = yFor(cum) - yTop;
+      cum += c;
+      seriesSVG += `<rect x="${x}" y="${yTop}" width="${barW}" height="${segH}" fill="${s.color}" fill-opacity="0.9" rx="1"><title>${s.name}: ${String(h).padStart(2, "0")}:00 — ${c} open${c === 1 ? "" : "s"}</title></rect>`;
     }
   }
 
