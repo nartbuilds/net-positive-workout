@@ -140,6 +140,7 @@ let state = {
   cache: {},
   groupCelebratedToday: false,
   decree: null, // today's { date, dictator, pleb, quote } from Firestore (Dictator feature)
+  reignPlebs: [], // names demoted on EARLIER days of the current reign (build up; reset at reign end)
   dictatorQuote: null, // sticky { text, by } from settings/app — persists across days
   chartRotated: (() => {
     try {
@@ -265,6 +266,64 @@ function currentPleb() {
   return state.decree && state.decree.date === getUTCTodayStr()
     ? state.decree.pleb || null
     : null;
+}
+
+// Previous UTC calendar day for a YYYY-MM-DD string.
+function utcPrevDay(dateStr) {
+  const dt = new Date(dateStr + "T00:00:00Z");
+  dt.setUTCDate(dt.getUTCDate() - 1);
+  return `${dt.getUTCFullYear()}-${String(dt.getUTCMonth() + 1).padStart(2, "0")}-${String(dt.getUTCDate()).padStart(2, "0")}`;
+}
+
+// Everyone currently demoted to Plebeian. In a multi-day reign (the same
+// Dictator elected several UTC days in a row) demotions are STRICTLY ADDITIVE:
+// each earlier day's pleb (state.reignPlebs, filled by refreshReignPlebs) plus
+// today's live pick build up together, and the whole set resets the instant the
+// reign ends and a new Dictator takes the crown. Returns a Set of names.
+function currentPlebs() {
+  const set = new Set(state.reignPlebs || []);
+  const today = currentPleb();
+  if (today) set.add(today);
+  return set;
+}
+
+// Recompute the plebs accumulated on EARLIER days of the current reign. Walk
+// back from yesterday while the elected Dictator matches today's Dictator — the
+// first mismatch is the reign boundary (this is what makes plebs auto-reset when
+// the crown changes hands). The election is deterministic per date, so we only
+// READ decree docs for the days actually inside the reign (usually 0–1), keeping
+// this well within the Firestore free tier. Today's own pleb is read live via
+// currentPleb(), so it's deliberately excluded here.
+async function refreshReignPlebs() {
+  if (!db || !state.participants.length) {
+    state.reignPlebs = [];
+    return;
+  }
+  const names = state.participants.map((p) => p.name);
+  const dict = currentDictator();
+  if (!dict) {
+    state.reignPlebs = [];
+    return;
+  }
+  const reignDates = [];
+  let cursor = utcPrevDay(getUTCTodayStr());
+  for (let i = 0; i < 60; i++) {
+    if (getDictatorForDay(cursor, names) !== dict) break; // reign boundary
+    reignDates.push(cursor);
+    cursor = utcPrevDay(cursor);
+  }
+  const plebs = [];
+  for (const date of reignDates) {
+    try {
+      const snap = await getDoc(doc(db, "decrees", date));
+      const pleb = snap.exists() ? snap.data().pleb : null;
+      if (pleb && !plebs.includes(pleb)) plebs.push(pleb);
+    } catch {
+      /* a single unreadable day shouldn't break the build-up */
+    }
+  }
+  state.reignPlebs = plebs;
+  if (state.currentUser) renderCurrentView();
 }
 
 // Crown badge for the day's Dictator, worn on their avatar. Returns "" for
@@ -431,10 +490,11 @@ function getInitials(name) {
 // only affects rendering. Falls back to `name` when unset.
 function getDisplayName(p) {
   if (!p) return "";
-  // Dictator feature: the day's Plebeian is renamed everywhere (this is the one
-  // central name site, so cards/leaderboard/history/etc. all pick it up). The
-  // Dictator's name is left untouched — they get the 👑 avatar badge instead.
-  if (p.name && p.name === currentPleb()) return "Plebeian";
+  // Dictator feature: every current Plebeian is renamed everywhere (this is the
+  // one central name site, so cards/leaderboard/history/etc. all pick it up).
+  // In a multi-day reign this can be several people at once (see currentPlebs).
+  // The Dictator's name is left untouched — they get the 👑 avatar badge instead.
+  if (p.name && currentPlebs().has(p.name)) return "Plebeian";
   return typeof p.displayName === "string" && p.displayName.trim()
     ? p.displayName.trim()
     : p.name ?? "";
@@ -4308,7 +4368,13 @@ function showDictatorPopup() {
   document.querySelector(".dictator-overlay")?.remove();
 
   const me = state.currentUser.name;
-  const others = state.participants.filter((p) => p.name !== me);
+  // Strictly additive: hide teammates already demoted earlier in this reign so
+  // the Dictator picks a NEW victim each day (1/day, building up).
+  const alreadyPlebs = currentPlebs();
+  const others = state.participants.filter(
+    (p) => p.name !== me && !alreadyPlebs.has(p.name),
+  );
+  const reigning = alreadyPlebs.size > 0;
 
   const overlay = document.createElement("div");
   overlay.className = "group-complete-overlay dictator-overlay";
@@ -4329,11 +4395,24 @@ function showDictatorPopup() {
     })
     .join("");
 
+  // When everyone else is already a Plebeian (e.g. day 4 of a reign that already
+  // demoted all peasants) there's no one left to demote — show an acknowledgment
+  // with a single dismiss button instead of an empty chooser.
+  const hasChoices = others.length > 0;
+  const subtitle = !hasChoices
+    ? `Your reign is absolute — everyone is already a <strong>Plebeian</strong>. 👑`
+    : reigning
+      ? `Your reign continues.<br>Demote one more peasant to <strong>Plebeian</strong>:`
+      : `You have been appointed Dictator for the day.<br>Demote one peasant to <strong>Plebeian</strong>:`;
+
   overlay.innerHTML = `
     <h1 class="glory-title">👑 DICTATOR 👑</h1>
-    <p class="glory-subtitle">You have been appointed Dictator for the day.<br>Demote one peasant to <strong>Plebeian</strong>:</p>
-    <div class="dictator-choices">${choicesHTML}</div>
-    <button class="dictator-skip" data-skip="1">Spare them all 🙏</button>
+    <p class="glory-subtitle">${subtitle}</p>
+    ${
+      hasChoices
+        ? `<div class="dictator-choices">${choicesHTML}</div>`
+        : `<button class="dictator-skip" data-skip="1">Long live the reign 👑</button>`
+    }
   `;
 
   const dismiss = () => {
@@ -4342,7 +4421,9 @@ function showDictatorPopup() {
     setTimeout(() => overlay.remove(), 400);
   };
 
-  // Require a deliberate choice or skip — backdrop taps don't dismiss.
+  // Require a deliberate demotion (no more "spare them all"); the only non-demote
+  // exit is the dismiss button shown when everyone is already a Plebeian.
+  // Backdrop taps don't dismiss.
   overlay.addEventListener("click", (e) => {
     const demoteBtn = e.target.closest("[data-demote]");
     if (demoteBtn) {
@@ -4362,6 +4443,7 @@ async function decreeDemotion(targetName) {
   if (!state.currentUser || !db) return;
   const me = state.currentUser.name;
   if (currentDictator() !== me) return; // only today's Dictator may demote
+  if (currentPlebs().has(targetName)) return; // already a Plebeian this reign
   const date = getUTCTodayStr();
   const prev = state.decree;
   const quote =
@@ -4820,6 +4902,7 @@ function showApp() {
   advanceFineCheckpoints(); // fire-and-forget: advance stored aggregates to yesterday
   syncTimezoneOffset();
   recordUsageOpen(); // usage analytics: log this app open
+  refreshReignPlebs(); // Dictator feature: carry earlier-reign plebs into today's view
   maybeShowDictatorPopup(); // Dictator feature: offer demotion if you're today's Dictator
 }
 
@@ -5265,6 +5348,7 @@ setInterval(() => {
   if (newUtcDay !== _lastUtcDay) {
     _lastUtcDay = newUtcDay;
     subscribeDecree();
+    refreshReignPlebs(); // reign may have extended into the new day, or reset
     if (state.currentUser) {
       renderCurrentView();
       maybeShowDictatorPopup();
