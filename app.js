@@ -351,7 +351,13 @@ function subscribeDecree() {
     doc(db, "decrees", date),
     (snap) => {
       state.decree = snap.exists() ? { date, ...snap.data() } : { date };
-      if (state.currentUser) renderCurrentView();
+      if (state.currentUser) {
+        renderCurrentView();
+        // Now that today's decree is loaded we can tell whether a pleb was
+        // already declared (possibly on another device) before offering the
+        // appointment popup.
+        maybeShowDictatorPopup();
+      }
     },
     (err) => console.warn("[Dictator] decree listener error:", err.message),
   );
@@ -4353,11 +4359,17 @@ function markDictatorPopupSeen() {
   } catch {}
 }
 
-// Show the appointment popup iff the logged-in user is today's Dictator and
-// hasn't seen it yet today.
+// Show the appointment popup iff the logged-in user is today's Dictator, hasn't
+// already declared today's pleb (on ANY device — Firestore is the source of
+// truth, not the per-device "seen" flag), and hasn't dismissed it yet today.
 function maybeShowDictatorPopup() {
   if (!state.currentUser) return;
   if (currentDictator() !== state.currentUser.name) return;
+  // Wait until today's decree has actually loaded, otherwise we can't tell
+  // whether a pleb was already declared elsewhere. The decree listener re-calls
+  // this once the snapshot arrives.
+  if (!state.decree || state.decree.date !== getUTCTodayStr()) return;
+  if (currentPleb()) return; // already demoted someone today (any device)
   if (dictatorPopupSeen()) return;
   if (document.querySelector(".dictator-overlay")) return;
   markDictatorPopupSeen();
