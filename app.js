@@ -4359,10 +4359,14 @@ function markDictatorPopupSeen() {
   } catch {}
 }
 
+// Guards against two concurrent callers (decree snapshot + showApp/rollover)
+// both awaiting refreshReignPlebs and then each opening a popup.
+let _dictatorPopupPending = false;
+
 // Show the appointment popup iff the logged-in user is today's Dictator, hasn't
 // already declared today's pleb (on ANY device — Firestore is the source of
 // truth, not the per-device "seen" flag), and hasn't dismissed it yet today.
-function maybeShowDictatorPopup() {
+async function maybeShowDictatorPopup() {
   if (!state.currentUser) return;
   if (currentDictator() !== state.currentUser.name) return;
   // Wait until today's decree has actually loaded, otherwise we can't tell
@@ -4372,7 +4376,28 @@ function maybeShowDictatorPopup() {
   if (currentPleb()) return; // already demoted someone today (any device)
   if (dictatorPopupSeen()) return;
   if (document.querySelector(".dictator-overlay")) return;
-  markDictatorPopupSeen();
+  if (_dictatorPopupPending) return;
+
+  // Make sure the plebs accumulated on earlier reign days are loaded BEFORE we
+  // build the chooser — otherwise (e.g. on day 3 of a reign) state.reignPlebs is
+  // still empty and the popup would offer already-demoted teammates again.
+  _dictatorPopupPending = true;
+  try {
+    await refreshReignPlebs();
+  } finally {
+    _dictatorPopupPending = false;
+  }
+
+  // Re-check the guards: the await above yields, so state (and the DOM) may have
+  // changed in the meantime.
+  if (!state.currentUser) return;
+  if (currentDictator() !== state.currentUser.name) return;
+  if (currentPleb()) return;
+  if (dictatorPopupSeen()) return;
+  if (document.querySelector(".dictator-overlay")) return;
+  // NOTE: we deliberately do NOT mark the popup "seen" here. It's marked only
+  // once the Dictator actually decides (demote or the absolute-reign dismiss),
+  // so closing the app without choosing lets it re-appear on next open.
   showDictatorPopup();
 }
 
@@ -4439,9 +4464,15 @@ function showDictatorPopup() {
   overlay.addEventListener("click", (e) => {
     const demoteBtn = e.target.closest("[data-demote]");
     if (demoteBtn) {
+      // A deliberate decision was made — mark seen so it doesn't re-pop today.
+      // (decreeDemotion also sets currentPleb, which suppresses it cross-device.)
+      markDictatorPopupSeen();
       decreeDemotion(demoteBtn.getAttribute("data-demote"));
       dismiss();
     } else if (e.target.closest("[data-skip]")) {
+      // Absolute-reign acknowledgment (no one left to demote, no Firestore
+      // write) — mark seen so this device stops re-showing it today.
+      markDictatorPopupSeen();
       dismiss();
     }
   });
